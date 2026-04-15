@@ -2,7 +2,54 @@
 
 export const WEAPON_TYPES = ['dao', 'jian', 'qiang', 'gun', 'fu', 'shan', 'qin', 'bi', 'fist']
 
+// ===== 武学残卷 =====
+const MARTIAL_SCROLLS = [
+  // 黄级
+  { id: 'scroll_ma_huang_1', name: '狂风刀法残卷', type: 'martial_scroll', martial_id: 'kuangfeng', rank: 'huang', cost: 150, desc: '记载着狂风刀法招式与口诀的残页，习武者梦寐以求。' },
+  { id: 'scroll_ma_huang_2', name: '血战八方残卷', type: 'martial_scroll', martial_id: 'xuezhanfang', rank: 'huang', cost: 150, desc: '置之死地而后生，刀刀见血。残卷已残，威力犹存。' },
+  { id: 'scroll_ma_huang_3', name: '乱世枪残卷', type: 'martial_scroll', martial_id: 'luanshi', rank: 'huang', cost: 140, desc: '乱世求存的枪法，快准狠。' },
+  { id: 'scroll_ma_huang_4', name: '铁棍破风残卷', type: 'martial_scroll', martial_id: 'tiejin', rank: 'huang', cost: 130, desc: '棍风如雷，中者筋断骨折。' },
+  { id: 'scroll_ma_huang_5', name: '青松剑法残卷', type: 'martial_scroll', martial_id: 'qingsong', rank: 'huang', cost: 130, desc: '如青松挺立，剑势沉稳。' },
+  { id: 'scroll_ma_huang_6', name: '落雁扇残卷', type: 'martial_scroll', martial_id: 'luoyan', rank: 'huang', cost: 120, desc: '落雁于天，扇出如风。' },
+  { id: 'scroll_ma_huang_7', name: '墨舞飞扬残卷', type: 'martial_scroll', martial_id: 'moshui', rank: 'huang', cost: 120, desc: '以笔代剑，墨迹所至，皆是杀招。' },
+  { id: 'scroll_ma_huang_8', name: '酸丫头乱披风拳残卷', type: 'martial_scroll', martial_id: 'suanguniang', rank: 'huang', cost: 120, desc: '看似杂乱无章，实则拳拳有章法。' },
+  // 玄级
+  { id: 'scroll_ma_xuan_1', name: '断魂三斩残卷', type: 'martial_scroll', martial_id: 'duanhun', rank: 'xuan', cost: 350, desc: '三斩断魂，刀刀夺命。' },
+  { id: 'scroll_ma_xuan_2', name: '冰魄枪残卷', type: 'martial_scroll', martial_id: 'bingqiang', rank: 'xuan', cost: 350, desc: '枪尖附寒冰之气，中者血脉冻结。' },
+  { id: 'scroll_ma_xuan_3', name: '落霞孤鹜剑残卷', type: 'martial_scroll', martial_id: 'luoxia', rank: 'xuan', cost: 380, desc: '晚霞与孤雁齐飞，剑光与夕阳一色。' },
+  { id: 'scroll_ma_xuan_4', name: '天下无扇残卷', type: 'martial_scroll', martial_id: 'tianxia', rank: 'xuan', cost: 360, desc: '一把折扇，可平天下不平事。' },
+  { id: 'scroll_ma_xuan_5', name: '龙吟铁砂掌残卷', type: 'martial_scroll', martial_id: 'longyin', rank: 'xuan', cost: 340, desc: '铁砂中修炼而成，掌力如龙吟。' },
+  { id: 'scroll_ma_xuan_6', name: '天地连环腿残卷', type: 'martial_scroll', martial_id: 'tiandi', rank: 'xuan', cost: 340, desc: '天地之间，腿无处不到。' },
+  // 地级
+  { id: 'scroll_ma_di_1', name: '轩辕刀法残卷', type: 'martial_scroll', martial_id: 'xuanyuan', rank: 'di', cost: 800, desc: '上古轩辕氏所创，刀意浩然。' },
+  { id: 'scroll_ma_di_2', name: '龙尾枪法残卷', type: 'martial_scroll', martial_id: 'longwei_gun', rank: 'di', cost: 800, desc: '枪身如龙尾，摆动间取敌首级。' },
+  { id: 'scroll_ma_di_3', name: '碎骨震天拳残卷', type: 'martial_scroll', martial_id: 'suanni', rank: 'di', cost: 820, desc: '拳可碎骨，势可震天。' },
+  { id: 'scroll_ma_di_4', name: '天劳破云掌残卷', type: 'martial_scroll', martial_id: 'tianlao', rank: 'di', cost: 820, desc: '一掌可破云裂天，霸道绝伦。' },
+  // 天级
+  { id: 'scroll_ma_tian_1', name: '霸刀九式残卷', type: 'martial_scroll', martial_id: 'badao', rank: 'tian', cost: 2000, desc: '刀中之霸，一刀劈出，天地变色。' },
+  { id: 'scroll_ma_tian_2', name: '冲岳九剑残卷', type: 'martial_scroll', martial_id: 'chongyue', rank: 'tian', cost: 2200, desc: '九剑齐出，可冲山岳，剑意惊天。' },
+]
+
+// ===== 心法残卷 =====
+const XINFA_SCROLLS = [
+  { id: 'scroll_xf_tuna', name: '吐纳法残卷', type: 'xinfa_scroll', xinfa_id: 'tuna', rank: 'wu', cost: 60, desc: '基础呼吸吐纳之法，是修习其他心法的根基。' },
+  { id: 'scroll_xf_changchun', name: '长春功残卷', type: 'xinfa_scroll', xinfa_id: 'changchun', rank: 'huang', cost: 140, desc: '延年益寿之功，每次移动后有概率回复体力。' },
+  { id: 'scroll_xf_taiyi', name: '太乙心法残卷', type: 'xinfa_scroll', xinfa_id: 'taiyi', rank: 'huang', cost: 140, desc: '太乙门镇派心法，每刻回复内力和体力。' },
+  { id: 'scroll_xf_jinshan', name: '金身心法残卷', type: 'xinfa_scroll', xinfa_id: 'jinshan', rank: 'xuan', cost: 350, desc: '防御属性转化为攻击力，每1点防御增加0.5点攻击。' },
+  { id: 'scroll_xf_jinghong', name: '惊鸿步法残卷', type: 'xinfa_scroll', xinfa_id: 'jinghong', rank: 'xuan', cost: 380, desc: '战斗开始时身法临时提升50%，持续3回合。' },
+  { id: 'scroll_xf_yijin', name: '易筋经残卷', type: 'xinfa_scroll', xinfa_id: 'yijin', rank: 'di', cost: 800, desc: '少林至宝，洗髓伐骨，每刻回复5%最大生命值。' },
+  { id: 'scroll_xf_jiuyang', name: '九阳神功残卷', type: 'xinfa_scroll', xinfa_id: 'jiuyang', rank: 'di', cost: 850, desc: '九阴真经阳刚篇，内力生生不息。' },
+  { id: 'scroll_xf_taiji', name: '太极拳经残卷', type: 'xinfa_scroll', xinfa_id: 'taiji', rank: 'di', cost: 850, desc: '以柔克刚，后发先至，受到伤害减少20%，闪避率+15%。' },
+  { id: 'scroll_xf_taiji_wuji', name: '太初无极功残卷', type: 'xinfa_scroll', xinfa_id: 'taiji_wuji', rank: 'tian', cost: 2000, desc: '太初之始，无极而生，暴击伤害大幅提升，死亡时复活。' },
+  { id: 'scroll_xf_chunyang', name: '纯阳真气残卷', type: 'xinfa_scroll', xinfa_id: 'chunyang', rank: 'tian', cost: 2200, desc: '至阳内功，气海属性对内功的加成系数额外提升。' },
+]
+
 export const ITEMS = [
+  // 武学残卷
+  ...MARTIAL_SCROLLS,
+  // 心法残卷
+  ...XINFA_SCROLLS,
+
   // ===== 武器 =====
 
   // 黄级刀
@@ -100,4 +147,22 @@ export function getItemsByType (type) {
 
 export function getItemById (id) {
   return ITEMS.find(i => i.id === id) || null
+}
+
+// 获取背包中的武学残卷
+export function getMartialScrollsFromInventory (inventory) {
+  return (inventory || []).map(inv => {
+    const item = getItemById(inv.item_id)
+    if (!item || item.type !== 'martial_scroll') return null
+    return { ...item, quantity: inv.quantity }
+  }).filter(Boolean)
+}
+
+// 获取背包中的心法残卷
+export function getXinfaScrollsFromInventory (inventory) {
+  return (inventory || []).map(inv => {
+    const item = getItemById(inv.item_id)
+    if (!item || item.type !== 'xinfa_scroll') return null
+    return { ...item, quantity: inv.quantity }
+  }).filter(Boolean)
 }

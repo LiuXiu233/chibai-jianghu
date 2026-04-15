@@ -1,11 +1,18 @@
 // useGame.js — 全局游戏状态与核心逻辑
 import { reactive, computed, readonly } from 'vue'
 import { REGIONS, discoverHiddenLocation, getNeighborLocation, getRegionEntry } from '../data/regions.js'
-import { MARTIAL_ARTS, XINFA, getRandomMartial, getResonanceEffect } from '../data/martialArts.js'
+import { MARTIAL_ARTS, XINFA, getResonanceEffect } from '../data/martialArts.js'
 import { ENEMY_TEMPLATES, spawnEnemy } from '../data/enemies.js'
 import { ITEMS, getItemById } from '../data/items.js'
 import { generateQuest, QUEST_TEMPLATES } from '../data/questTemplates.js'
 import { FATE_QUESTIONS, BASE_ATTRS, BASE_HP, BASE_QI, BASE_STAMINA } from '../data/fateQuestions.js'
+import {
+  generateMartial, generateMartialsForHall, generateXinfa,
+  generateEnemy, generateMartialScroll, generateXinfaScroll,
+  generateQuestForRegion, generateHiddenLocation,
+  SCROLL_MARTIALS, SCROLL_XINFAS,
+  calcPracticeCost, getMartialReq,
+} from '../data/generator.js'
 
 // 时间单位：1刻 = 15分钟，1时辰 = 8刻，1天 = 96刻
 const MAX_TURNS = 96000 // 1000天 × 96刻
@@ -152,7 +159,6 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
         discovered_locations: [], // 酒馆传闻触发的隐藏地点
         enemy_kills: {},
         martialCooldowns: {}, // { martial_id: remainingTurns }
-        martialHallCooldown: 0, // 武馆学习冷却（刻）
         carry_weight: 0,
       }
       state.quests = []
@@ -161,7 +167,6 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       state.player.carry_weight = 0
       state.player.max_carry = calcMaxCarry(attrs)
       state.player.martialCooldowns = {}
-      state.player.martialHallCooldown = 0
       state.player.discovered_locations = []
 
       // 初始武学（根据属性给予）
@@ -346,10 +351,6 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       const qi_regen = Math.ceil(ke / 4)
       state.player.current_stamina = Math.min(state.player.max_stamina, state.player.current_stamina + stamina_regen)
       state.player.current_qi = Math.min(state.player.max_qi, state.player.current_qi + qi_regen)
-      // 武馆学习冷却（大世界每刻-1）
-      if (state.player.martialHallCooldown > 0) {
-        state.player.martialHallCooldown = Math.max(0, state.player.martialHallCooldown - ke)
-      }
       // 任务过期检查（每24刻=6小时一次）
       if (state.clock % 24 === 0) this.checkTaskExpiration()
       // 检查生命
@@ -377,6 +378,37 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
         state.player.gold += gold
         this.addLog(`一位好心路人给了你 ${gold} 两银子。`, 'event')
       }
+    },
+
+    // ---- 野外探索 ----
+    // 返回 { type: 'combat'|'martial_scroll'|'xinfa_scroll', data }
+    // 调用方负责 router.push('/game/combat')
+    explore () {
+      this.advanceTurn(1)
+      const regionDiff = REGIONS.find(r => r.id === state.player?.regionId)?.difficulty || 1
+      const event = generateExploreEvent(state.player, regionDiff, state.clock + Date.now())
+      if (event.type === 'martial_scroll') {
+        this.addItem(event.data.itemId, 1)
+        this.addLog(`你在探索中意外发现了一本【${event.data.name}】！`, 'event')
+        return event
+      } else if (event.type === 'xinfa_scroll') {
+        this.addItem(event.data.itemId, 1)
+        this.addLog(`你在探索中意外发现了一卷【${event.data.name}】！`, 'event')
+        return event
+      } else if (event.type === 'item') {
+        // 随机物品
+        const consumables = ITEMS.filter(i => i.type === 'consumable')
+        if (consumables.length) {
+          const item = consumables[Math.floor(Math.random() * consumables.length)]
+          this.addItem(item.id, 1)
+          this.addLog(`探索中你发现了：${item.name}！`, 'event')
+        }
+        return event
+      } else if (event.type === 'enemy') {
+        this.startCombat(event.data)
+        return event
+      }
+      return event
     },
 
     // ---- 战斗 ----
@@ -945,13 +977,72 @@ playerAction (action, martialId = null) {
         state.building.data = { type: 'normal', text: gossip.text }
         this.addLog(`酒馆中有人说：「${gossip}」`, 'event')
       } else if (type === 'martialHall') {
-        // 随机教一个无级或黄级武学
-        const roll = Math.random()
-        const rank = roll < 0.4 ? 'wu' : 'huang'
-        const m = getRandomMartial(rank)
-        state.building.data = m
-        this.addLog(`武馆中有一位隐世高手，愿意传授你一招「${m.name}」。`, 'event')
+        // 生成3个随机武学（基于区域难度）
+        const regionDiff = REGIONS.find(r => r.id === state.player?.regionId)?.difficulty || 1
+        const martials = generateMartialsForHall(regionDiff, 3, state.clock + Date.now())
+        state.building.data = { martials, selected: null }
+        this.addLog(`武馆中有一位隐世高手，愿意传授你武学。`, 'event')
       }
+    },
+
+    // ---- 使用物品（背包） ----
+    useItem (itemId) {
+      const item = getItemById(itemId)
+      if (!item) return { ok: false, reason: 'not_found' }
+      const inv = state.player.inventory.find(i => i.item_id === itemId)
+      if (!inv || inv.quantity <= 0) return { ok: false, reason: 'no_quantity' }
+
+      if (item.type === 'consumable') {
+        const healBonus = this.getResonance()?.effect?.heal_bonus || 0
+        if (item.effect?.hp) state.player.current_hp = Math.min(state.player.max_hp, state.player.current_hp + Math.floor(item.effect.hp * (1 + healBonus)))
+        if (item.effect?.qi) state.player.current_qi = Math.min(state.player.max_qi, state.player.current_qi + Math.floor(item.effect.qi * (1 + healBonus)))
+        if (item.effect?.stamina) state.player.current_stamina = Math.min(state.player.max_stamina, state.player.current_stamina + Math.floor(item.effect.stamina * (1 + healBonus)))
+        inv.quantity--
+        if (inv.quantity <= 0) state.player.inventory = state.player.inventory.filter(i => i.item_id !== itemId)
+        this.addLog(`你使用了${item.name}。`, 'event')
+        return { ok: true }
+      }
+
+      if (item.type === 'martial_scroll') {
+        // 检查是否已会
+        if (state.player.martial_arts.find(m => m.martial_id === item.martial_id)) {
+          return { ok: false, reason: 'already_known' }
+        }
+        // 悟性门槛
+        const martial = MARTIAL_ARTS.find(m => m.id === item.martial_id)
+        if (!martial) return { ok: false, reason: 'not_found' }
+        const req = getMartialReq(martial.rank)
+        if ((state.player.attrs.悟性 || 0) < req) {
+          return { ok: false, reason: 'comprehension', required: req, current: state.player.attrs.悟性 }
+        }
+        // 消耗残卷
+        inv.quantity--
+        if (inv.quantity <= 0) state.player.inventory = state.player.inventory.filter(i => i.item_id !== itemId)
+        const result = this.learnMartial(item.martial_id)
+        if (result.ok) {
+          this.addLog(`你研读【${item.name}】，习得了「${martial.name}」！`, 'event')
+        }
+        return result
+      }
+
+      if (item.type === 'xinfa_scroll') {
+        // 检查是否已会
+        const known = this.getKnownXinfas()
+        if (known.find(k => k.id === item.xinfa_id)) {
+          return { ok: false, reason: 'already_known' }
+        }
+        // 消耗残卷
+        inv.quantity--
+        if (inv.quantity <= 0) state.player.inventory = state.player.inventory.filter(i => i.item_id !== itemId)
+        const result = this.learnXinfa(item.xinfa_id)
+        if (result.ok) {
+          const xf = XINFA.find(x => x.id === item.xinfa_id)
+          this.addLog(`你研读【${item.name}】，修习了「${xf?.name}」！`, 'event')
+        }
+        return result
+      }
+
+      return { ok: false, reason: 'cannot_use' }
     },
 
     buyItem (itemId) {
@@ -1011,24 +1102,65 @@ playerAction (action, martialId = null) {
       return true
     },
 
-    learnAtMartialHall () {
-      const m = state.building?.data
-      if (!m || !m.id) return
-      // 武馆冷却检查（20回合，约20小时）
-      if (state.player.martialHallCooldown > 0) {
-        this.addLog(`武馆传授需要间隔，你刚学过，还需等待${state.player.martialHallCooldown}回合。`, 'system')
-        return
+    learnAtMartialHall (martialId) {
+      const buildingData = state.building?.data
+      const m = martialId ? (buildingData?.martials?.find(m => m.id === martialId)) : null
+      if (!m) return { ok: false, reason: 'not_found' }
+      if (state.player.martial_arts.find(k => k.martial_id === martialId)) {
+        return { ok: false, reason: 'already_known' }
       }
-      const result = this.learnMartial(m.id)
+      const req = getMartialReq(m.rank)
+      if ((state.player.attrs.悟性 || 0) < req) {
+        return { ok: false, reason: 'comprehension', required: req, current: state.player.attrs.悟性 }
+      }
+      const result = this.learnMartial(martialId)
       if (result.ok) {
-        state.player.martialHallCooldown = 20
         this.addLog(`你学会了「${m.name}」！`, 'event')
-        state.building.data = null // 清空当前武学
-      } else if (result.reason === 'already_known') {
-        this.addLog('你已经会这门武学了。', 'system')
-      } else if (result.reason === 'comprehension') {
-        this.addLog(`你的悟性不足（需${result.required}，当前${result.current}），无法修习「${m.name}」。`, 'system')
       }
+      return result
+    },
+
+    // ---- 武馆刷新 ----
+    refreshMartialHall () {
+      // 检查武馆刷新冷却（24刻 = 6小时一次免费刷新）
+      const lastRefresh = state.player.lastMartialHallRefresh || 0
+      const cost = state.clock - lastRefresh < 24 ? 50 : 0 // 冷却内刷新需50银两
+      if (state.player.gold < cost) {
+        this.addLog(`刷新武馆需要${cost}两银子，你只有${state.player.gold}两。`, 'system')
+        return false
+      }
+      state.player.gold -= cost
+      const regionDiff = REGIONS.find(r => r.id === state.player?.regionId)?.difficulty || 1
+      const martials = generateMartialsForHall(regionDiff, 3, state.clock + Date.now())
+      state.building.data = { martials, selected: null }
+      state.player.lastMartialHallRefresh = state.clock
+      this.addLog(`武馆刷新了新的武学展示。`, 'event')
+      return true
+    },
+
+    // ---- 武学修炼 ----
+    practiceMartial (martialId, times = 1) {
+      const p = state.player
+      const known = p.martial_arts.find(m => m.martial_id === martialId)
+      if (!known) return { ok: false, reason: 'not_found' }
+      if (known.mastery >= 100) return { ok: false, reason: 'max_mastery' }
+      const martial = MARTIAL_ARTS.find(m => m.id === martialId)
+      const cost = calcPracticeCost(martial?.rank || 'wu')
+      const staminaCost = 5 * times
+      const goldCost = cost * times
+      if (p.current_stamina < staminaCost) return { ok: false, reason: 'no_stamina', needed: staminaCost }
+      if (p.gold < goldCost) return { ok: false, reason: 'no_gold', needed: goldCost }
+      p.current_stamina -= staminaCost
+      p.gold -= goldCost
+      // 每次修炼增加熟练度
+      known.exp = (known.exp || 0) + 2 * times
+      const levelUps = Math.floor(known.exp / 50)
+      if (levelUps > 0) {
+        known.mastery = Math.min(100, (known.mastery || 0) + levelUps)
+        known.exp = known.exp % 50
+        this.addLog(`你的「${martial?.name || '武学'}」熟练度提升了！当前 ${known.mastery}/100`, 'event')
+      }
+      return { ok: true }
     },
 
     // ---- 存档 ----

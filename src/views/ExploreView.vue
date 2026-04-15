@@ -111,16 +111,8 @@ function move (direction) {
 }
 
 function explore () {
-  game.advanceTurn(1)
-  const diff = region.value?.difficulty || 1
-  const pool = ENEMY_TEMPLATES.filter(e => {
-    const rv = { wu: 1, huang: 2, xuan: 3, di: 4, tian: 5 }[e.rank] || 1
-    return rv <= diff + 1
-  })
-  if (!pool.length) return
-  const enemy = pool[Math.floor(Math.random() * pool.length)]
-  const ok = game.startCombat(enemy)
-  if (ok !== false) {
+  const result = game.explore()
+  if (result.type === 'combat') {
     router.push('/game/combat')
   }
 }
@@ -145,8 +137,6 @@ function travel (regionId) {
 function getRegionName (id) {
   return REGIONS.find(r => r.id === id)?.name || id
 }
-
-import { ENEMY_TEMPLATES } from '../data/enemies.js'
 
 watch(() => state.eventLog.length, async () => {
   await nextTick()

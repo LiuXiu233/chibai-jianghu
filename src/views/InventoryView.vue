@@ -36,6 +36,7 @@
       <button :class="['tab', tab === 'armor' ? 'tab-active' : '']" @click="tab = 'armor'">防具</button>
       <button :class="['tab', tab === 'consumable' ? 'tab-active' : '']" @click="tab = 'consumable'">消耗品</button>
       <button :class="['tab', tab === 'material' ? 'tab-active' : '']" @click="tab = 'material'">材料</button>
+      <button :class="['tab', tab === 'scroll' ? 'tab-active' : '']" @click="tab = 'scroll'">残卷</button>
     </div>
 
     <!-- 物品列表 -->
@@ -51,6 +52,7 @@
         <span class="item-qty" v-if="entry.quantity > 1">×{{ entry.quantity }}</span>
         <button class="btn btn-sm" v-if="entry.item.type === 'consumable'" @click.stop="useItem(entry.item_id)">使用</button>
         <button class="btn btn-sm btn-red" v-if="entry.item.type === 'weapon' || entry.item.type === 'armor' || entry.item.type === 'accessory'" @click.stop="equipItem(entry.item_id)">装备</button>
+        <button class="btn btn-sm btn-gold" v-if="entry.item.type === 'martial_scroll' || entry.item.type === 'xinfa_scroll'" @click.stop="showScrollDetail(entry)">研习</button>
       </div>
       <div class="empty-tip" v-if="filteredItems.length === 0">背包空空如也</div>
     </div>
@@ -62,13 +64,26 @@
           <span :class="['rank-tag', 'rank-' + detail.rank]">{{ rankLabel[detail.rank] }}</span>
           {{ detail.name }}
         </div>
+        <div class="modal-type">{{ typeLabel[detail.type] || detail.type }}</div>
         <div class="modal-desc">{{ detail.desc }}</div>
+        <!-- 武学残卷信息 -->
+        <div class="scroll-info" v-if="detail.type === 'martial_scroll' && detail.martial_id">
+          <div class="scroll-target">可习得武学：{{ getMartialName(detail.martial_id) }}</div>
+          <div class="scroll-req text-gray">悟性要求：{{ getMartialReq(detail.martial_id) }}（你 {{ state.player?.attrs?.悟性 }}）</div>
+        </div>
+        <!-- 心法残卷信息 -->
+        <div class="scroll-info" v-if="detail.type === 'xinfa_scroll' && detail.xinfa_id">
+          <div class="scroll-target">可修习心法：{{ getXinfaName(detail.xinfa_id) }}</div>
+          <div class="scroll-req text-gray">悟性要求：{{ getXinfaReq(detail.xinfa_id) }}（你 {{ state.player?.attrs?.悟性 }}）</div>
+        </div>
         <div class="modal-attrs" v-if="detail.attrs">
           <div v-for="(v, k) in detail.attrs" :key="k" class="attr-bonus">
             {{ attrNames[k] || k }}: +{{ v }}
           </div>
         </div>
         <div class="modal-btns">
+          <button class="btn btn-sm btn-gold" v-if="detail.type === 'martial_scroll' || detail.type === 'xinfa_scroll'" @click="learnFromScroll(detail)">研习</button>
+          <button class="btn btn-sm" v-if="detail.type === 'consumable'" @click="useItem(detail.id)">使用</button>
           <button class="btn btn-sm" @click="detail = null">关闭</button>
         </div>
       </div>
@@ -80,6 +95,8 @@
 import { ref, computed } from 'vue'
 import { useGame } from '../composables/useGame'
 import { getItemById } from '../data/items.js'
+import { MARTIAL_ARTS, XINFA } from '../data/martialArts.js'
+import { getMartialReq as getMartialReqByRank } from '../data/generator.js'
 
 const game = useGame()
 const state = game.state
@@ -88,6 +105,7 @@ const detail = ref(null)
 
 const rankLabel = { tian: '天', di: '地', xuan: '玄', huang: '黄', wu: '无' }
 const attrNames = { power: '力量', qi: '气海', agility: '身法', constitution: '根骨', luck: '幸运', comprehension: '悟性', hp: '生命', defense: '防御', dodge: '闪避', hp_regen: '生命回复', qi_regen: '内力回复' }
+const typeLabel = { consumable: '消耗品', weapon: '武器', armor: '防具', accessory: '饰品', material: '材料', martial_scroll: '武学残卷', xinfa_scroll: '心法残卷' }
 
 const inventory = computed(() => (state.player?.inventory || []).map(e => ({
   ...e,
@@ -102,6 +120,7 @@ const equipped = computed(() => ({
 
 const filteredItems = computed(() => {
   if (tab.value === 'all') return inventory.value
+  if (tab.value === 'scroll') return inventory.value.filter(e => e.item.type === 'martial_scroll' || e.item.type === 'xinfa_scroll')
   return inventory.value.filter(e => e.item.type === tab.value)
 })
 
@@ -110,7 +129,6 @@ const maxCarry = computed(() => game.computed.maxCarry.value)
 const carryPct = computed(() => maxCarry.value > 0 ? Math.min(100, carryWeight.value / maxCarry.value * 100) : 0)
 
 function selectEquip (slot) {
-  // 卸下装备
   if (slot === 'weapon' && state.player.equipment.weapon) {
     game.unequipItem('weapon')
   } else if (slot === 'armor' && state.player.equipment.armor) {
@@ -126,25 +144,42 @@ function equipItem (itemId) {
 }
 
 function useItem (itemId) {
-  const item = getItemById(itemId)
-  if (!item || item.type !== 'consumable') return
-  const entry = state.player.inventory.find(e => e.item_id === itemId)
-  if (!entry || entry.quantity <= 0) return
-  if (item.effect.hp) state.player.current_hp = Math.min(state.player.max_hp, state.player.current_hp + item.effect.hp)
-  if (item.effect.qi) state.player.current_qi = Math.min(state.player.max_qi, state.player.current_qi + item.effect.qi)
-  if (item.effect.stamina) state.player.current_stamina = Math.min(state.player.max_stamina, state.player.current_stamina + item.effect.stamina)
-  if (item.effect.cure === 'poison') {
-    game.addLog('你解除了中毒状态。', 'system')
+  game.useItem(itemId)
+}
+
+function learnFromScroll (item) {
+  const result = game.useItem(item.id)
+  if (!result.ok) {
+    if (result.reason === 'already_known') game.addLog('你已经会这门武学/心法了。', 'system')
+    else if (result.reason === 'comprehension') game.addLog(`悟性不足（需${result.required}，当前${result.current}）。`, 'system')
   }
-  entry.quantity--
-  if (entry.quantity <= 0) {
-    state.player.inventory = state.player.inventory.filter(e => e.item_id !== itemId)
-  }
-  game.addLog(`你使用了${item.name}。`, 'system')
+  detail.value = null
 }
 
 function showItemDetail (entry) {
   detail.value = entry.item
+}
+
+function showScrollDetail (entry) {
+  detail.value = entry.item
+}
+
+function getMartialName (martialId) {
+  return MARTIAL_ARTS.find(m => m.id === martialId)?.name || martialId
+}
+
+function getXinfaName (xinfaId) {
+  return XINFA.find(x => x.id === xinfaId)?.name || xinfaId
+}
+
+function getMartialReq (martialId) {
+  const m = MARTIAL_ARTS.find(m => m.id === martialId)
+  return m ? getMartialReqByRank(m.rank) : 0
+}
+
+function getXinfaReq (xinfaId) {
+  const x = XINFA.find(x => x.id === xinfaId)
+  return x?.learn_req?.comprehension ?? 0
 }
 </script>
 
@@ -347,5 +382,45 @@ function showItemDetail (entry) {
 .modal-btns {
   display: flex;
   gap: 8px;
+}
+
+.modal-type {
+  font-size: 12px;
+  color: var(--gray);
+}
+
+.scroll-info {
+  background: rgba(255,200,0,0.08);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scroll-target {
+  font-size: 14px;
+  color: #1A1A1A;
+  font-weight: 600;
+}
+
+.scroll-req {
+  font-size: 12px;
+}
+
+.btn-gold {
+  background: var(--gold);
+  color: #1A1A1A;
+  border: none;
+  border-radius: 3px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-gold:hover {
+  filter: brightness(0.9);
 }
 </style>
