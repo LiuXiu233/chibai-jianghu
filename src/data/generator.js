@@ -4,6 +4,10 @@ import { MARTIAL_ARTS, XINFA } from './martialArts.js'
 import { ENEMY_TEMPLATES, spawnEnemy } from './enemies.js'
 import { generateQuest } from './questTemplates.js'
 import { discoverHiddenLocation } from './regions.js'
+import {
+  generateProcMartial, generateProcXinfa,
+  getProcEnemy, generateProcDrop, generateProcLocation,
+} from './procGen.js'
 
 // ---- 随机种子工具 ----
 function seededRand (seed) {
@@ -19,8 +23,16 @@ function pickN (arr, n, seed) {
 
 // ---- 武学生成 ----
 // regionDiff: 1-5，生成适合该区域的随机武学
-export function generateMartial (regionDiff = 1, seed = Date.now()) {
-  // 难度区间映射：regionDiff → 武学等级权重
+export function generateMartial (regionDiff = 1, seed = Date.now(), useProc = false) {
+  if (useProc) {
+    const rankPool = []
+    for (let i = 1; i <= Math.min(regionDiff + 1, 5); i++) {
+      const rankMap = { 1: 'wu', 2: 'huang', 3: 'xuan', 4: 'di', 5: 'tian' }
+      rankPool.push(rankMap[i])
+    }
+    const rank = pick(rankPool, seed)
+    return generateProcMartial(rank, seed)
+  }
   const rankPool = []
   for (let i = 1; i <= Math.min(regionDiff + 1, 5); i++) {
     const rankMap = { 1: 'wu', 2: 'huang', 3: 'xuan', 4: 'di', 5: 'tian' }
@@ -36,17 +48,25 @@ export function generateMartial (regionDiff = 1, seed = Date.now()) {
 export function generateMartialsForHall (regionDiff = 1, count = 3, seed = Date.now()) {
   const result = []
   let s = seed
-  for (let i = 0; i < count; i++) {
-    const m = generateMartial(regionDiff, s + i * 100)
-    if (!result.find(r => r.id === m.id)) result.push(m) // 去重
-    s++
+  for (let i = 0; i < count * 3; i++) {
+    const m = generateMartial(regionDiff, s + i * 7, true)
+    if (!result.find(r => r.id === m.id) && (m.proc || !result.length)) {
+      result.push(m)
+    }
+    if (result.length >= count) break
   }
-  return result
+  return result.slice(0, count)
 }
 
 // ---- 心法生成 ----
 // comprehension: 玩家悟性，过滤悟性门槛以下的
-export function generateXinfa (comprehension = 10, seed = Date.now()) {
+export function generateXinfa (comprehension = 10, seed = Date.now(), useProc = false) {
+  if (useProc) {
+    const possible = XINFA.filter(x => (x.learn_req?.comprehension ?? 0) <= comprehension)
+    const pool = possible.length > 0 ? possible : XINFA
+    const rank = pick(pool.map(x => x.rank), seed)
+    return generateProcXinfa(rank, seed)
+  }
   const possible = XINFA.filter(x => (x.learn_req?.comprehension ?? 0) <= comprehension)
   const pool = possible.length > 0 ? possible : XINFA
   const idx = Math.floor(seededRand(seed) * pool.length)
@@ -54,7 +74,17 @@ export function generateXinfa (comprehension = 10, seed = Date.now()) {
 }
 
 // ---- 敌人生成 ----
-export function generateEnemy (regionDiff = 1, seed = Date.now()) {
+// regionDiff: 1-5; day: 游戏天数(1-1000); useProc: 是否优先使用过程化生成
+export function generateEnemy (regionDiff = 1, seed = Date.now(), day = 1, useProc = false) {
+  // 过程化敌人生成（带天数演化缩放）
+  if (useProc) {
+    // 根据区域难度和天数决定敌人等阶
+    const rankMap = { 1: ['wu', 'huang'], 2: ['huang'], 3: ['huang', 'xuan'], 4: ['xuan', 'di'], 5: ['di', 'tian'] }
+    const possible = rankMap[Math.min(regionDiff, 5)] || ['huang']
+    const rank = possible[Math.floor(seededRand(seed + day) * possible.length)]
+    return getProcEnemy(rank, day, seed)
+  }
+  // 回退到模板敌人生成
   const filtered = ENEMY_TEMPLATES.filter(e => {
     const rv = { wu: 1, huang: 2, xuan: 3, di: 4, tian: 5 }[e.rank] || 1
     return rv <= regionDiff + 1
@@ -144,25 +174,30 @@ export function generateXinfaScroll (comprehension = 10, seed = Date.now()) {
 
 // ---- 野外探索综合事件 ----
 // 返回: { type: 'martial_scroll'|'xinfa_scroll'|'enemy'|'item'|'nothing', data }
-export function generateExploreEvent (player, regionDiff = 1, seed = Date.now()) {
+export function generateExploreEvent (player, regionDiff = 1, seed = Date.now(), day = 1) {
   const roll = seededRand(seed)
   const comprehension = player?.attrs?.悟性 || 10
 
   if (roll < 0.03) {
-    // 3% 武学残卷
-    const scroll = generateMartialScroll(regionDiff, seed)
-    return { type: 'martial_scroll', data: scroll }
+    // 3% 过程化武学残卷
+    const rankMap = { 1: 'huang', 2: 'huang', 3: 'xuan', 4: 'di', 5: 'tian' }
+    const rank = rankMap[Math.min(regionDiff, 5)] || 'huang'
+    const m = generateProcMartial(rank, seed)
+    return { type: 'martial_scroll', data: { itemId: m.id, martialId: m.id, name: m.name + '残卷', rank: m.rank, proc: true } }
   } else if (roll < 0.05) {
-    // 2% 心法残卷
-    const scroll = generateXinfaScroll(comprehension, seed + 1)
-    return { type: 'xinfa_scroll', data: scroll }
+    // 2% 过程化心法残卷
+    const rankMap2 = { 1: 'wu', 2: 'huang', 3: 'xuan', 4: 'di', 5: 'tian' }
+    const rank = rankMap2[Math.min(regionDiff, 5)] || 'huang'
+    const xf = generateProcXinfa(rank, seed + 1)
+    return { type: 'xinfa_scroll', data: { itemId: xf.id, xinfaId: xf.id, name: xf.name + '残卷', rank: xf.rank, proc: true } }
   } else if (roll < 0.10) {
-    // 5% 敌人
-    const enemy = generateEnemy(regionDiff, seed + 2)
+    // 5% 敌人（过程化，带天数缩放）
+    const enemy = generateEnemy(regionDiff, seed + 2, day, true)
     return { type: 'enemy', data: enemy }
   } else if (roll < 0.18) {
-    // 8% 物品
-    return { type: 'item', data: null }
+    // 8% 物品（过程化掉落）
+    const drop = generateProcDrop(regionDiff > 2 ? 'xuan' : 'huang', seed + 5)
+    return { type: 'item', data: drop }
   }
   return { type: 'nothing', data: null }
 }

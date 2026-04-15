@@ -120,6 +120,26 @@
         <div class="empty-tip" v-if="!martialScrolls.length">背包中无武学残卷</div>
       </div>
 
+      <!-- 探索获得的武学残卷 -->
+      <div class="section-title" style="margin-top:12px">探索武学</div>
+      <div class="scroll-list">
+        <div v-for="s in discoveredProcMartials" :key="s.id" class="scroll-row">
+          <span :class="['rank-tag', 'rank-'+s.rank]">{{ rankLabel[s.rank] }}</span>
+          <div class="sr-info">
+            <span class="sr-name">{{ s.name }}</span>
+            <span class="sr-target text-gray">习得：{{ s.id }}</span>
+          </div>
+          <button
+            class="btn btn-sm btn-gold"
+            :disabled="isProcMartialKnown(s.id)"
+            @click="learnProcScroll(s.id, 'martial')"
+          >
+            {{ isProcMartialKnown(s.id) ? '已学' : '研习' }}
+          </button>
+        </div>
+        <div class="empty-tip" v-if="!discoveredProcMartials.length">探索中尚未发现武学</div>
+      </div>
+
       <div class="section-title" style="margin-top:12px">心法残卷</div>
       <div class="scroll-list">
         <div v-for="s in xinfaScrolls" :key="s.item_id" class="scroll-row">
@@ -138,6 +158,26 @@
           </button>
         </div>
         <div class="empty-tip" v-if="!xinfaScrolls.length">背包中无心法残卷</div>
+      </div>
+
+      <!-- 探索获得的心法残卷 -->
+      <div class="section-title" style="margin-top:12px">探索心法</div>
+      <div class="scroll-list">
+        <div v-for="s in discoveredProcXinfas" :key="s.id" class="scroll-row">
+          <span :class="['rank-tag', 'rank-'+s.rank]">{{ rankLabel[s.rank] }}</span>
+          <div class="sr-info">
+            <span class="sr-name">{{ s.name }}</span>
+            <span class="sr-target text-gray">修习：{{ s.id }}</span>
+          </div>
+          <button
+            class="btn btn-sm btn-gold"
+            :disabled="isProcXinfaKnown(s.id)"
+            @click="learnProcScroll(s.id, 'xinfa')"
+          >
+            {{ isProcXinfaKnown(s.id) ? '已学' : '研习' }}
+          </button>
+        </div>
+        <div class="empty-tip" v-if="!discoveredProcXinfas.length">探索中尚未发现心法</div>
       </div>
     </div>
 
@@ -198,6 +238,29 @@ const xinfaScrolls = computed(() => {
   return getXinfaScrollsFromInventory(state.player?.inventory || [])
 })
 
+// 探索发现的武学残卷（过程化，未研习）
+const discoveredProcMartials = computed(() => {
+  return (state.player?.procKnownMartials || []).map(e => ({
+    id: e.id,
+    name: e.name,
+    rank: game.getProcMartialData(e.id)?.rank || 'huang',
+    martialId: e.id,
+    mastery: e.mastery,
+    proc: true,
+  })).filter(e => e.proc && e.name)
+})
+
+// 探索发现的心法残卷（过程化，未研习）
+const discoveredProcXinfas = computed(() => {
+  return (state.player?.procKnownXinfas || []).map(e => ({
+    id: e.id,
+    name: e.name,
+    rank: 'huang',
+    xinfaId: e.id,
+    proc: true,
+  })).filter(e => e.proc && e.name)
+})
+
 function getReq (rank) {
   return getMartialReq(rank)
 }
@@ -217,6 +280,14 @@ function isMartialKnown (martialId) {
 
 function isXinfaKnown (xinfaId) {
   return !!game.getKnownXinfas().find(x => x.id === xinfaId)
+}
+
+function isProcMartialKnown (martialId) {
+  return !!(state.player?.procKnownMartials?.find(e => e.id === martialId))
+}
+
+function isProcXinfaKnown (xinfaId) {
+  return !!(state.player?.procKnownXinfas?.find(e => e.id === xinfaId))
 }
 
 function selectMartial (m) {
@@ -270,6 +341,27 @@ function learnScroll (item) {
     learnResult.value = '你已掌握此武学/心法。'
   } else if (result.reason === 'comprehension') {
     learnResult.value = `悟性不足（需${result.required}，当前${result.current}）。`
+  }
+}
+
+function learnProcScroll (procId, type) {
+  if (type === 'martial') {
+    const procData = game.getProcMartialData(procId)
+    const result = game.learnProcMartial(procId, procId, procData)
+    if (result.ok) {
+      learnResult.value = `你研读了【${procId}】，习得了该武学！`
+    } else if (result.reason === 'already_known') {
+      learnResult.value = '你已掌握此武学。'
+    } else if (result.reason === 'comprehension') {
+      learnResult.value = `悟性不足（需${result.required}，当前${result.current}）。`
+    }
+  } else {
+    const result = game.learnProcXinfa(procId, procId, null)
+    if (result.ok) {
+      learnResult.value = `你研读了【${procId}】，修习了该心法！`
+    } else if (result.reason === 'already_known') {
+      learnResult.value = '你已掌握此心法。'
+    }
   }
 }
 

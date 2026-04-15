@@ -13,10 +13,16 @@ import {
   SCROLL_MARTIALS, SCROLL_XINFAS,
   calcPracticeCost, getMartialReq,
 } from '../data/generator.js'
+import { getProcMartial, getProcXinfa } from '../data/procGen.js'
 
 // 时间单位：1刻 = 15分钟，1时辰 = 8刻，1天 = 96刻
 const MAX_TURNS = 96000 // 1000天 × 96刻
 const SAVE_KEY = 'chibai_save_v1'
+
+// 过程化武学/心法数据缓存（用于战斗时查找）
+const PROC_MARTIAL_CACHE = {}
+const PROC_XINFA_CACHE = {}
+
 const ADMIN_KEY = 'chibai_admin_v1'
 
 // 基础 HP/Qi/Stamina 由属性决定
@@ -253,12 +259,14 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       const slots = state.player?.xinfa_slots || {}
       const result = []
       if (slots.main) {
-        const xf = XINFA.find(x => x.id === slots.main)
+        const xf = XINFA.find(x => x.id === slots.main) ||
+          state.player.procKnownXinfas?.find(p => p.id === slots.main)?.data
         if (xf) result.push({ ...xf, mult: 1.0 })
       }
       for (const slot of ['sub1', 'sub2']) {
         if (slots[slot]) {
-          const xf = XINFA.find(x => x.id === slots[slot])
+          const xf = XINFA.find(x => x.id === slots[slot]) ||
+            state.player.procKnownXinfas?.find(p => p.id === slots[slot])?.data
           if (xf) result.push({ ...xf, mult: 0.4 })
         }
       }
@@ -386,22 +394,54 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
     explore () {
       this.advanceTurn(1)
       const regionDiff = REGIONS.find(r => r.id === state.player?.regionId)?.difficulty || 1
-      const event = generateExploreEvent(state.player, regionDiff, state.clock + Date.now())
+      const day = Math.floor(state.clock / 96) + 1
+      const event = generateExploreEvent(state.player, regionDiff, state.clock + Date.now(), day)
       if (event.type === 'martial_scroll') {
-        this.addItem(event.data.itemId, 1)
-        this.addLog(`你在探索中意外发现了一本【${event.data.name}】！`, 'event')
+        // 过程化武学残卷：从 procGen 缓存取出完整数据，同步到 useGame 缓存
+        if (event.data.proc) {
+          const regionDiff = REGIONS.find(r => r.id === state.player?.regionId)?.difficulty || 1
+          const rankMap = { 1: 'huang', 2: 'huang', 3: 'xuan', 4: 'di', 5: 'tian' }
+          const rank = rankMap[Math.min(regionDiff, 5)] || 'huang'
+          // 用相同种子从 procGen 缓存取出完整武学数据
+          const fullMartial = getProcMartial(rank, state.clock)
+          if (fullMartial) PROC_MARTIAL_CACHE[event.data.martialId] = fullMartial
+          if (!state.player.procKnownMartials) state.player.procKnownMartials = []
+          const exists = state.player.procKnownMartials.find(e => e.id === event.data.martialId)
+          if (!exists) state.player.procKnownMartials.push({ id: event.data.martialId, name: event.data.name, data: fullMartial, mastery: 0, exp: 0 })
+          this.addLog(`你在探索中意外发现了一本【${event.data.name}】！`, 'event')
+        } else {
+          this.addItem(event.data.itemId, 1)
+          this.addLog(`你在探索中意外发现了一本【${event.data.name}】！`, 'event')
+        }
         return event
       } else if (event.type === 'xinfa_scroll') {
-        this.addItem(event.data.itemId, 1)
-        this.addLog(`你在探索中意外发现了一卷【${event.data.name}】！`, 'event')
+        // 过程化心法残卷：从 procGen 缓存取出完整数据，同步到 useGame 缓存
+        if (event.data.proc) {
+          const regionDiff = REGIONS.find(r => r.id === state.player?.regionId)?.difficulty || 1
+          const rankMap2 = { 1: 'huang', 2: 'huang', 3: 'xuan', 4: 'di', 5: 'tian' }
+          const rank = rankMap2[Math.min(regionDiff, 5)] || 'huang'
+          const fullXinfa = getProcXinfa(rank, state.clock + 1)
+          if (fullXinfa) PROC_XINFA_CACHE[event.data.xinfaId] = fullXinfa
+          if (!state.player.procKnownXinfas) state.player.procKnownXinfas = []
+          const exists = state.player.procKnownXinfas.find(e => e.id === event.data.xinfaId)
+          if (!exists) state.player.procKnownXinfas.push({ id: event.data.xinfaId, name: event.data.name, data: fullXinfa })
+          this.addLog(`你在探索中意外发现了一卷【${event.data.name}】！`, 'event')
+        } else {
+          this.addItem(event.data.itemId, 1)
+          this.addLog(`你在探索中意外发现了一卷【${event.data.name}】！`, 'event')
+        }
         return event
       } else if (event.type === 'item') {
-        // 随机物品
-        const consumables = ITEMS.filter(i => i.type === 'consumable')
-        if (consumables.length) {
-          const item = consumables[Math.floor(Math.random() * consumables.length)]
-          this.addItem(item.id, 1)
-          this.addLog(`探索中你发现了：${item.name}！`, 'event')
+        // 过程化物品
+        if (event.data?.type === 'weapon') {
+          this.addLog(`探索中你发现了一把武器！`, 'event')
+        } else {
+          const consumables = ITEMS.filter(i => i.type === 'consumable')
+          if (consumables.length) {
+            const item = consumables[Math.floor(Math.random() * consumables.length)]
+            this.addItem(item.id, 1)
+            this.addLog(`探索中你发现了：${item.name}！`, 'event')
+          }
         }
         return event
       } else if (event.type === 'enemy') {
@@ -413,10 +453,23 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
 
     // ---- 战斗 ----
     startCombat (enemy) {
-      const spawned = spawnEnemy(enemy, state.player ? REGIONS.find(r => r.id === state.player.regionId)?.difficulty || 1 : 1)
-      state.combat = { enemy: spawned, inCombat: true, log: [], playerTurn: true }
-      state.phase = 'combat'
-      this.addLog(`你与${spawned.name}的战斗开始！`, 'combat')
+      // proc敌人已有完整属性，无需spawnEnemy
+      const isProc = !!enemy.proc
+      if (isProc) {
+        state.combat = { enemy, inCombat: true, log: [], playerTurn: true }
+        state.phase = 'combat'
+        // 天级敌人额外提示
+        if (enemy.rank === 'tian') {
+          this.addLog(`⚠️【天级威胁】你在探索中遭遇了【${enemy.name}】！`, 'combat')
+        } else {
+          this.addLog(`你与${enemy.name}的战斗开始！`, 'combat')
+        }
+      } else {
+        const spawned = spawnEnemy(enemy, state.player ? REGIONS.find(r => r.id === state.player.regionId)?.difficulty || 1 : 1)
+        state.combat = { enemy: spawned, inCombat: true, log: [], playerTurn: true }
+        state.phase = 'combat'
+        this.addLog(`你与${spawned.name}的战斗开始！`, 'combat')
+      }
       return true
     },
 
@@ -517,21 +570,32 @@ playerAction (action, martialId = null) {
         }
       } else if (action === 'martial' && martialId) {
         const known = p.martial_arts.find(m => m.martial_id === martialId)
-        const martial = MARTIAL_ARTS.find(m => m.id === martialId)
-        if (!known || !martial) return
+        // 优先从PROC缓存查找（过程化武学）
+        let martial = PROC_MARTIAL_CACHE[martialId] || null
+        if (!martial) martial = MARTIAL_ARTS.find(m => m.id === martialId)
+        // proc武学也可能有条目（learnProcMartial注册到procKnownMartials）
+        if (!martial) {
+          const procKnown = p.procKnownMartials?.find(e => e.id === martialId)
+          if (procKnown) martial = procKnown.data
+        }
+        if (!martial) return
 
         const cd = p.martialCooldowns[martialId] || 0
         if (cd > 0) {
           log.push(`${martial.name}正在冷却中，还需等待${cd}回合。`)
         } else {
-          const mastery = known.mastery || 0
+          const mastery = (known?.mastery || 0)
           const masteryBonus = 1 + mastery / 200
-          const attrVal = martial.type === 'external' ? p.attrs.力量 : p.attrs.气海
+          // proc武学：attrVal根据type判断
+          const isExternal = martial.type === 'external'
+          const isInternal = martial.type === 'internal'
+          const attrVal = isExternal ? p.attrs.力量 : isInternal ? p.attrs.气海 : p.attrs.力量
           const mult = martial.effects?.[0]?.mult || 1.5
           const unarmedMult = martial.weapon === null ? (martial.unarmedMult || 1.2) : 1
-          const power = Math.floor((attrVal * mult + martial.attrs?.power || 0) * masteryBonus * unarmedMult)
-          const consume_stamina = martial.effects?.[0]?.consume?.stamina || 5
-          const consume_qi = martial.effects?.[0]?.consume?.qi || 0
+          const attrBonus = martial.attrs?.power || martial.attrs?.qi || 0
+          const power = Math.floor((attrVal * mult + attrBonus) * masteryBonus * unarmedMult)
+          const consume_stamina = martial.effects?.[0]?.consume?.stamina || (isInternal ? 0 : 5)
+          const consume_qi = martial.effects?.[0]?.consume?.qi || (isInternal ? 20 : 0)
 
           if (p.current_stamina < consume_stamina && p.current_qi < consume_qi) {
             log.push(`${martial.name}需要消耗体力${consume_stamina}点或内力${consume_qi}点，你目前均不足！`)
@@ -765,7 +829,9 @@ playerAction (action, martialId = null) {
     // ---- 获取已学会的心法列表 ----
     getKnownXinfas () {
       const knownIds = state.player?.known_xinfas || []
-      return knownIds.map(id => XINFA.find(x => x.id === id)).filter(Boolean)
+      const base = knownIds.map(id => XINFA.find(x => x.id === id)).filter(Boolean)
+      const proc = (state.player?.procKnownXinfas || []).map(e => e.data).filter(Boolean)
+      return [...base, ...proc]
     },
 
     // ---- 装备/切换心法槽（战斗中不可切换，非战斗消耗1刻调息） ----
@@ -778,7 +844,7 @@ playerAction (action, martialId = null) {
         return false
       }
       const slots = p.xinfa_slots
-      // 检查目标心法是否已学会
+      // 检查目标心法是否已学会（基础或过程化）
       const known = this.getKnownXinfas()
       if (!known.find(k => k.id === xinfaId)) return false
       // 检查是否已在此槽
@@ -786,7 +852,9 @@ playerAction (action, martialId = null) {
       slots[slot] = xinfaId
       // 调息：消耗1时辰（8刻）
       this.advanceTurn(8)
-      this.addLog(`你调息片刻，切换至【${XINFA.find(x => x.id === xinfaId)?.name}】。`, 'system')
+      const xf = XINFA.find(x => x.id === xinfaId) ||
+        state.player.procKnownXinfas?.find(p => p.id === xinfaId)?.data
+      this.addLog(`你调息片刻，切换至【${xf?.name || xinfaId}】。`, 'system')
       return true
     },
 
@@ -1045,6 +1113,72 @@ playerAction (action, martialId = null) {
       return { ok: false, reason: 'cannot_use' }
     },
 
+    // ---- 研习过程化武学残卷 ----
+    learnProcMartial (procId, itemName, procData) {
+      const p = state.player
+      if (!p.procKnownMartials) p.procKnownMartials = []
+      if (p.procKnownMartials.find(e => e.id === procId)) {
+        return { ok: false, reason: 'already_known' }
+      }
+      // 悟性门槛（proc武学的默认门槛）
+      const req = getMartialReq(procData?.rank || 'huang')
+      if ((p.attrs.悟性 || 0) < req) {
+        return { ok: false, reason: 'comprehension', required: req, current: p.attrs.悟性 }
+      }
+      // 缓存数据
+      if (procData) PROC_MARTIAL_CACHE[procId] = procData
+      // 注册到玩家已学列表
+      p.procKnownMartials.push({ id: procId, data: procData, mastery: 0, exp: 0 })
+      this.addLog(`你研读了${itemName}，习得了该武学！`, 'event')
+      return { ok: true }
+    },
+
+    // ---- 研习过程化心法残卷 ----
+    learnProcXinfa (procId, itemName, procData) {
+      const p = state.player
+      if (!p.procKnownXinfas) p.procKnownXinfas = []
+      if (p.procKnownXinfas.find(e => e.id === procId)) {
+        return { ok: false, reason: 'already_known' }
+      }
+      // 心法固定加成
+      if (procData?.attrs) {
+        if (procData.attrs.hp) {
+          p.max_hp += procData.attrs.hp
+          p.current_hp += procData.attrs.hp
+        }
+        if (procData.attrs.qi) {
+          p.max_qi += procData.attrs.qi
+          p.current_qi += procData.attrs.qi
+        }
+      }
+      // 缓存数据
+      if (procData) PROC_XINFA_CACHE[procId] = procData
+      p.procKnownXinfas.push({ id: procId, data: procData })
+      this.addLog(`你研读了${itemName}，修习了该心法！`, 'event')
+      return { ok: true }
+    },
+
+    // ---- 获取已学会的过程化武学 ----
+    getKnownProcMartials () {
+      return (state.player?.procKnownMartials || []).map(e => ({
+        ...e,
+        data: e.data || PROC_MARTIAL_CACHE[e.id] || null,
+      })).filter(e => e.data)
+    },
+
+    // ---- 获取已学会的过程化心法 ----
+    getKnownProcXinfas () {
+      return (state.player?.procKnownXinfas || []).map(e => ({
+        ...e,
+        data: e.data || PROC_XINFA_CACHE[e.id] || null,
+      })).filter(e => e.data)
+    },
+
+    // ---- 获取过程化武学数据（用于战斗） ----
+    getProcMartialData (procId) {
+      return PROC_MARTIAL_CACHE[procId] || null
+    },
+
     buyItem (itemId) {
       const item = getItemById(itemId)
       if (!item) return false
@@ -1104,20 +1238,38 @@ playerAction (action, martialId = null) {
 
     learnAtMartialHall (martialId) {
       const buildingData = state.building?.data
-      const m = martialId ? (buildingData?.martials?.find(m => m.id === martialId)) : null
-      if (!m) return { ok: false, reason: 'not_found' }
-      if (state.player.martial_arts.find(k => k.martial_id === martialId)) {
-        return { ok: false, reason: 'already_known' }
+      const buildingMartial = martialId ? (buildingData?.martials?.find(m => m.id === martialId)) : null
+      if (!buildingMartial) return { ok: false, reason: 'not_found' }
+      const isProc = buildingMartial.proc
+      if (isProc) {
+        // 过程化武学：检查是否已学
+        if (state.player.procKnownMartials?.find(k => k.id === martialId)) {
+          return { ok: false, reason: 'already_known' }
+        }
+        const req = getMartialReq(buildingMartial.rank || 'huang')
+        if ((state.player.attrs.悟性 || 0) < req) {
+          return { ok: false, reason: 'comprehension', required: req, current: state.player.attrs.悟性 }
+        }
+        const result = this.learnProcMartial(martialId, buildingMartial.name, buildingMartial)
+        if (result.ok) {
+          this.addLog(`你学会了「${buildingMartial.name}」！`, 'event')
+        }
+        return result
+      } else {
+        // 基础武学
+        if (state.player.martial_arts.find(k => k.martial_id === martialId)) {
+          return { ok: false, reason: 'already_known' }
+        }
+        const req = getMartialReq(buildingMartial.rank)
+        if ((state.player.attrs.悟性 || 0) < req) {
+          return { ok: false, reason: 'comprehension', required: req, current: state.player.attrs.悟性 }
+        }
+        const result = this.learnMartial(martialId)
+        if (result.ok) {
+          this.addLog(`你学会了「${buildingMartial.name}」！`, 'event')
+        }
+        return result
       }
-      const req = getMartialReq(m.rank)
-      if ((state.player.attrs.悟性 || 0) < req) {
-        return { ok: false, reason: 'comprehension', required: req, current: state.player.attrs.悟性 }
-      }
-      const result = this.learnMartial(martialId)
-      if (result.ok) {
-        this.addLog(`你学会了「${m.name}」！`, 'event')
-      }
-      return result
     },
 
     // ---- 武馆刷新 ----
@@ -1141,10 +1293,22 @@ playerAction (action, martialId = null) {
     // ---- 武学修炼 ----
     practiceMartial (martialId, times = 1) {
       const p = state.player
-      const known = p.martial_arts.find(m => m.martial_id === martialId)
+      // 先检查基础武学，再检查过程化武学
+      let known = p.martial_arts.find(m => m.martial_id === martialId)
+      let isProc = false
+      let martial = null
+      if (!known) {
+        const procKnown = p.procKnownMartials?.find(k => k.id === martialId)
+        if (procKnown) {
+          known = procKnown
+          isProc = true
+          martial = procKnown.data || PROC_MARTIAL_CACHE[martialId]
+        }
+      } else {
+        martial = MARTIAL_ARTS.find(m => m.id === martialId)
+      }
       if (!known) return { ok: false, reason: 'not_found' }
       if (known.mastery >= 100) return { ok: false, reason: 'max_mastery' }
-      const martial = MARTIAL_ARTS.find(m => m.id === martialId)
       const cost = calcPracticeCost(martial?.rank || 'wu')
       const staminaCost = 5 * times
       const goldCost = cost * times

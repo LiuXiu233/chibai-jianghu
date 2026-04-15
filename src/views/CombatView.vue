@@ -1,5 +1,10 @@
 <template>
   <div class="combat-view">
+    <!-- 天阶敌人红屏警告 -->
+    <div v-if="flashRed" class="tian-flash" @click="flashRed = false">
+      <div class="tian-flash-text">⚠ 天阶强敌来袭 ⚠</div>
+    </div>
+
     <!-- 顶部状态 -->
     <div class="combat-status">
       <div class="turn-indicator text-red">{{ enemy ? '⚔ 战斗进行中' : '战斗结束' }}</div>
@@ -105,6 +110,7 @@ const game = useGame()
 const state = game.state
 const showMartials = ref(false)
 const logEl = ref(null)
+const flashRed = ref(false)
 
 const enemy = computed(() => state.combat?.enemy)
 const combatLog = computed(() => (state.combat?.log || []).map(l => typeof l === 'string' ? { text: l, type: '' } : l))
@@ -143,6 +149,14 @@ watch(() => combatLog.value.length, async () => {
   await nextTick()
   if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
 })
+
+// 天阶敌人红屏警告
+watch(enemy, (newEnemy) => {
+  if (newEnemy?.rank === 'tian') {
+    flashRed.value = true
+    setTimeout(() => { flashRed.value = false }, 2000)
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -303,4 +317,38 @@ watch(() => combatLog.value.length, async () => {
 .btn-lg { padding: 12px 32px; font-size: 16px; }
 .btn-gold { border-color: var(--gold); color: var(--gold); }
 .btn-gold:hover { background: var(--gold); color: var(--bg); }
+
+/* 天阶敌人红屏警告 */
+.tian-flash {
+  position: fixed;
+  inset: 0;
+  background: rgba(194, 40, 40, 0.7);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: flash-pulse 0.5s ease-in-out 4;
+}
+
+.tian-flash-text {
+  font-size: 28px;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 0 20px rgba(255, 100, 100, 0.9);
+  animation: flash-text 0.5s ease-in-out infinite alternate;
+  text-align: center;
+  letter-spacing: 0.2em;
+}
+
+@keyframes flash-pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+@keyframes flash-text {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
 </style>
