@@ -25,15 +25,31 @@ function range (min, max, seed) {
 // 词库
 // ============================================================
 
-// --- 武学 ---
-// 意境词（外/内功共用）
-const MARTIAL_MOOD = [
-  '凌霄', '苍穹', '裂云', '破晓', '幽冥', '寒霜', '赤焰', '雷霆',
-  '天陨', '惊鸿', '傲骨', '狂澜', '残阳', '寂灭', '霸天', '流云',
-  '断魂', '灭世', '修罗', '修罗', '焚天', '九幽', '八荒', '六合',
-  '天机', '玄黄', '太初', '混沌', '鸿蒙', '万象', '千山', '万水',
-  '落叶', '飞花', '飘雪', '惊雷', '暗涌', '狂潮', '逝水', '残月',
+// ============================================================
+// 5 阶品质前缀池（武器/护具/武学统一等阶前缀）
+// ============================================================
+export const QUALITY_PREFIXES = {
+  tian:  ['寂灭', '弑神', '破天', '造化', '太初', '万劫', '归墟', '红莲', '赤皇', '天罚'],
+  di:    ['镇岳', '焚城', '乾坤', '九幽', '惊雷', '碎星', '狂澜', '至尊', '金刚', '霸绝'],
+  xuan:  ['嗜血', '锋锐', '洗髓', '御风', '流光', '缠绕', '蚀骨', '寒芒', '紫极', '破军'],
+  huang: ['坚实', '精炼', '稍快', '厚重', '寻常', '平庸', '蓝纹', '疾走', '耐用', '铁壁'],
+  wu:    ['锈蚀', '断裂', '凡铁', '朽烂', '无名', '残缺', '轻薄', '廉价', '钝刃', '朽木'],
+}
+
+// --- 武学意境词（红白美学）---
+// 红色系（杀伐、阳刚、业报）
+const MARTIAL_MOOD_RED = [
+  '朱砂', '残阳', '赤地', '屠戮', '胭脂', '烈火', '断肢', '红枭',
+  '贪狼', '罪孽', '业火', '杜鹃', '血月', '枯血', '噬魂', '炼狱',
+  '寂灭', '弑神', '破天', '霸天', '焚天', '断魂', '灭世', '修罗',
 ]
+// 白色系（空灵、阴柔、虚无）
+const MARTIAL_MOOD_WHITE = [
+  '霜雪', '浮云', '无相', '苍白', '枯骨', '月魄', '虚无', '忘川',
+  '寒鸦', '般若', '涅槃', '浮生', '洗礼', '尘埃', '轮回', '幽冥',
+  '苍穹', '鸿蒙', '太初', '混沌', '万象', '九幽', '八荒', '六合',
+]
+const MARTIAL_MOOD = [...MARTIAL_MOOD_RED, ...MARTIAL_MOOD_WHITE]
 
 // 分类动词
 const EXTERNAL_VERBS = ['刀', '枪', '斧', '棍', '剑', '鞭', '钩', '戟', '锤', '戟']
@@ -163,7 +179,9 @@ const XINFA_SUFFIXES_ELITE = [
 
 // --- 敌人 ---
 // 敌人词缀（Buff/Debuff）
+// 敌人名号词缀（PRD 扩充版）
 const ENEMY_PREFIXES = [
+  // 原有保留
   { name: '嗜血的', buff: 'lifesteal', val: 0.05 },
   { name: '疯狂的', buff: 'damage_bonus', val: 0.1 },
   { name: '冷静的', buff: 'defense_bonus', val: 0.1 },
@@ -174,43 +192,87 @@ const ENEMY_PREFIXES = [
   { name: '狡诈的', buff: 'dodge_bonus', val: 0.1 },
   { name: '强壮的', buff: 'hp_bonus', val: 0.3 },
   { name: '迅捷的', buff: 'speed_bonus', val: 0.2 },
-  { name: '疯狂的', buff: 'lifesteal', val: 0.08 },
   { name: '入魔的', buff: 'all_bonus', val: 0.15 },
   { name: '破境的', buff: 'all_bonus', val: 0.2 },
   { name: '天悟的', buff: 'comprehension_bonus', val: 10 },
   { name: '血债的', buff: 'damage_bonus', val: 0.15 },
+  // PRD 新增
+  { name: '瞎眼的', buff: 'accuracy_down', val: 0.2 },
+  { name: '双持的', buff: 'double_strike', val: 0.2 },
+  { name: '垂死的', buff: 'hp_bonus', val: 0.5, danger: true },
+  { name: '金色的', buff: 'gold_bonus', val: 3.0 },
+  { name: '无头的', buff: 'speed_bonus', val: 0.25 },
+  { name: '痊愈的', buff: 'hp_regen', val: 3 },
+  { name: '灵体的', buff: 'dodge_bonus', val: 0.25 },
+  { name: '天魔的', buff: 'all_bonus', val: 0.3 },
+  { name: '妖化的', buff: 'crit_dmg_bonus', val: 0.3 },
+  { name: '尸变的', buff: 'hp_bonus', val: 0.4 },
+  { name: '亡灵的', buff: 'speed_bonus', val: 0.15, dodge_bonus: 0.15 },
 ]
-// 敌人身份主体
-const ENEMY_IDENTITIES = [
-  { name: '刀客', style: 'external', weapon: 'dao' },
-  { name: '剑士', style: 'internal', weapon: 'jian' },
-  { name: '枪手', style: 'external', weapon: 'qiang' },
-  { name: '棍僧', style: 'external', weapon: 'gun' },
-  { name: '散修', style: 'mixed', weapon: null },
-  { name: '武僧', style: 'external', weapon: null },
-  { name: '术士', style: 'internal', weapon: 'qin' },
-  { name: '老媪', style: 'unarmed', weapon: null },
-  { name: '护卫', style: 'external', weapon: 'jian' },
-  { name: '刺客', style: 'external', weapon: 'dao' },
-  { name: '隐士', style: 'internal', weapon: 'shan' },
-  { name: '宗师', style: 'mixed', weapon: null },
-  { name: '门徒', style: 'mixed', weapon: null },
-  { name: '弟子', style: 'mixed', weapon: null },
-  { name: '长老', style: 'internal', weapon: null },
-  { name: '掌门', style: 'mixed', weapon: null },
-  { name: '邪修', style: 'internal', weapon: 'bi' },
-  { name: '游侠', style: 'external', weapon: 'qiang' },
-  { name: '书生', style: 'internal', weapon: 'shan' },
-  { name: '铁匠', style: 'external', weapon: 'fu' },
-  { name: '盗贼', style: 'external', weapon: 'dao' },
-  { name: '山贼', style: 'external', weapon: 'dao' },
-  { name: '匪首', style: 'external', weapon: 'fu' },
-  { name: '血刀徒', style: 'external', weapon: 'dao' },
-  { name: '阴阳师', style: 'internal', weapon: 'qin' },
-]
+
+// 敌人身份主体 — 按等级分档（PRD 扩充版）
+const ENEMY_IDENTITIES = {
+  low: [
+    { name: '乞丐', style: 'unarmed', weapon: null },
+    { name: '流寇', style: 'external', weapon: 'dao' },
+    { name: '山贼', style: 'external', weapon: 'fu' },
+    { name: '野狗', style: 'unarmed', weapon: null },
+    { name: '杂役', style: 'unarmed', weapon: null },
+    { name: '逃兵', style: 'external', weapon: 'qiang' },
+    { name: '喽啰', style: 'external', weapon: 'dao' },
+    { name: '盗匪', style: 'external', weapon: 'dao' },
+    { name: '恶霸', style: 'external', weapon: 'gun' },
+  ],
+  mid: [
+    { name: '刀客', style: 'external', weapon: 'dao' },
+    { name: '剑士', style: 'internal', weapon: 'jian' },
+    { name: '枪手', style: 'external', weapon: 'qiang' },
+    { name: '棍僧', style: 'external', weapon: 'gun' },
+    { name: '散修', style: 'mixed', weapon: null },
+    { name: '武僧', style: 'external', weapon: null },
+    { name: '术士', style: 'internal', weapon: 'qin' },
+    { name: '护卫', style: 'external', weapon: 'jian' },
+    { name: '刺客', style: 'external', weapon: 'dao' },
+    { name: '隐士', style: 'internal', weapon: 'shan' },
+    { name: '门徒', style: 'mixed', weapon: null },
+    { name: '弟子', style: 'mixed', weapon: null },
+    { name: '执事', style: 'internal', weapon: null },
+    { name: '镖师', style: 'external', weapon: 'qiang' },
+    { name: '死士', style: 'external', weapon: 'dao' },
+    { name: '书生', style: 'internal', weapon: 'shan' },
+    { name: '阴阳师', style: 'internal', weapon: 'qin' },
+    { name: '邪修', style: 'internal', weapon: 'bi' },
+    { name: '长老', style: 'internal', weapon: null },
+    { name: '萨满', style: 'internal', weapon: null },
+  ],
+  high: [
+    { name: '宗师', style: 'mixed', weapon: null },
+    { name: '剑圣', style: 'internal', weapon: 'jian' },
+    { name: '魔头', style: 'internal', weapon: null },
+    { name: '隐士', style: 'internal', weapon: 'shan' },
+    { name: '剑冢守卫', style: 'external', weapon: 'jian' },
+    { name: '不知名骸骨', style: 'unarmed', weapon: null },
+    { name: '大萨满', style: 'internal', weapon: null },
+    { name: '圣僧', style: 'internal', weapon: null },
+    { name: '邪帝', style: 'internal', weapon: null },
+    { name: '妖后', style: 'internal', weapon: 'qin' },
+    { name: '剑魔', style: 'external', weapon: 'jian' },
+    { name: '掌门', style: 'mixed', weapon: null },
+  ],
+}
+
+// 等阶 → 身份档位映射
+const RANK_IDENTITY_MAP = {
+  wu:   { tier: 'low', prefixChance: 0.3 },
+  huang: { tier: 'low', prefixChance: 0.4 },
+  xuan:  { tier: 'mid', prefixChance: 0.5 },
+  di:    { tier: 'mid', prefixChance: 0.6 },
+  tian:  { tier: 'high', prefixChance: 0.8 },
+}
+
 // 敌人后缀（境界）
 const ENEMY_SUFFIXES = [
-  { name: '', multiplier: 1.0 }, // 无后缀
+  { name: '', multiplier: 1.0 },
   { name: '[小成]', multiplier: 1.1 },
   { name: '[大成]', multiplier: 1.2 },
   { name: '[圆满]', multiplier: 1.35 },
@@ -220,8 +282,9 @@ const ENEMY_SUFFIXES = [
   { name: '[天威]', multiplier: 2.0, bonus: { crit_dmg_bonus: 0.5 } },
 ]
 
-// --- 武器前缀 ---
+// --- 武器前缀（含品质等阶前缀）---
 const WEAPON_PREFIXES = [
+  // 原有保留
   // 外功
   { name: '沉重的', attrs: { power: 8 }, type: 'external' },
   { name: '锯齿的', attrs: { power: 5 }, special: 'lifesteal', special_val: 0.08, type: 'external' },
@@ -236,10 +299,17 @@ const WEAPON_PREFIXES = [
   { name: '寒月的', attrs: { qi: 15, agility: 5 }, type: 'internal' },
   { name: '玄冰的', attrs: { qi: 10, constitution: 5 }, type: 'internal' },
   { name: '紫电的', attrs: { qi: 18, agility: 8 }, type: 'internal' },
+  // PRD 品质前缀（天/地/玄/黄/无 统一前缀，插入到词库供随机抽取）
+  ...QUALITY_PREFIXES.tian.map(n => ({ name: `${n}的`, attrs: { power: 22, qi: 22 }, special: 'lifesteal', special_val: 0.15, type: 'external' })),
+  ...QUALITY_PREFIXES.di.map(n => ({ name: `${n}的`, attrs: { power: 16, qi: 16 }, special: 'lifesteal', special_val: 0.1, type: 'external' })),
+  ...QUALITY_PREFIXES.xuan.map(n => ({ name: `${n}的`, attrs: { power: 10, qi: 10 }, type: 'external' })),
+  ...QUALITY_PREFIXES.huang.map(n => ({ name: `${n}的`, attrs: { power: 5 }, type: 'external' })),
+  ...QUALITY_PREFIXES.wu.map(n => ({ name: `${n}的`, attrs: { power: 2 }, type: 'external' })),
 ]
 
-// --- 护具前缀 ---
+// --- 护具前缀（含品质等阶前缀）---
 const ARMOR_PREFIXES = [
+  // 原有保留
   { name: '坚硬的', attrs: { constitution: 8, defense: 5 } },
   { name: '牢固的', attrs: { constitution: 5, defense: 8 } },
   { name: '轻便的', attrs: { agility: 5, defense: 3 } },
@@ -247,32 +317,57 @@ const ARMOR_PREFIXES = [
   { name: '灵巧的', attrs: { agility: 8, dodge: 3 } },
   { name: '幸运的', attrs: { luck: 8 } },
   { name: '强化的', attrs: { constitution: 6, defense: 6, agility: 3 } },
+  // PRD 品质前缀
+  ...QUALITY_PREFIXES.tian.map(n => ({ name: `${n}的`, attrs: { constitution: 18, defense: 15 } })),
+  ...QUALITY_PREFIXES.di.map(n => ({ name: `${n}的`, attrs: { constitution: 12, defense: 10 } })),
+  ...QUALITY_PREFIXES.xuan.map(n => ({ name: `${n}的`, attrs: { constitution: 8, defense: 6 } })),
+  ...QUALITY_PREFIXES.huang.map(n => ({ name: `${n}的`, attrs: { constitution: 4, defense: 3 } })),
+  ...QUALITY_PREFIXES.wu.map(n => ({ name: `${n}的`, attrs: { constitution: 1, defense: 1 } })),
 ]
 
 // --- 地点 ---
 const LOCATION_PREFIXES = [
+  // 原有保留
   '荒凉的', '繁华的', '血色的', '静谧的', '残破的', '古老的',
   '神秘的', '阴森的', '苍凉的', '幽深的', '血腥的', '飘渺的',
   '破败的', '荒废的', '寂静的', '偏僻的', '幽静的', '萧瑟的',
   '破落的', '废弃的', '偏僻的',
+  // PRD 新增
+  '血染的', '迷雾的', '神魔的', '极寒的', '极热的', '极干的',
+  '鬼哭的', '磷火的', '白骨的', '落日的', '残月的', '雷霆的',
+  '瘟疫的', '封印的', '禁忌的', '不归的', '万丈的', '千仞的',
+  '枯骨的', '亡魂的', '诅咒的', '遗弃的', '沦陷的', '湮灭的',
 ]
-const LOCATION_TERRAINS = [
-  { name: '小镇', buildings: ['blacksmith', 'pharmacy', 'tavern'] },
-  { name: '驿站', buildings: ['notice'] },
-  { name: '古镇', buildings: ['blacksmith', 'martialHall', 'tavern'] },
-  { name: '废墟', buildings: [] },
-  { name: '竹林', buildings: [] },
-  { name: '荒野', buildings: [] },
-  { name: '山道', buildings: [] },
-  { name: '古庙', buildings: ['notice'] },
-  { name: '山洞', buildings: [] },
-  { name: '深谷', buildings: [] },
-  { name: '峡谷', buildings: [] },
-  { name: '古墓', buildings: [] },
-  { name: '山寨', buildings: ['blacksmith'] },
-  { name: '渡口', buildings: ['notice', 'tavern'] },
-  { name: '山寨', buildings: ['notice'] },
-]
+// 地形/主体分类
+const LOCATION_TERRAINS = {
+  town: [
+    { name: '镇', buildings: ['blacksmith', 'pharmacy', 'tavern'] },
+    { name: '城', buildings: ['blacksmith', 'pharmacy', 'tavern', 'martialHall'] },
+    { name: '寨', buildings: ['blacksmith', 'notice'] },
+    { name: '堡', buildings: ['notice', 'blacksmith'] },
+    { name: '宫', buildings: ['martialHall', 'notice'] },
+    { name: '阁', buildings: ['notice'] },
+    { name: '观', buildings: ['notice'] },
+    { name: '庙', buildings: ['notice'] },
+  ],
+  wild: [
+    { name: '冢', buildings: [] },
+    { name: '林', buildings: [] },
+    { name: '关', buildings: ['notice'] },
+    { name: '驿', buildings: ['notice', 'tavern'] },
+    { name: '墟', buildings: [] },
+    { name: '荒原', buildings: [] },
+    { name: '古战场', buildings: [] },
+    { name: '乱葬岗', buildings: [] },
+    { name: '矿脉', buildings: [] },
+    { name: '祭坛', buildings: [] },
+    { name: '石碑林', buildings: [] },
+    { name: '残殿', buildings: [] },
+    { name: '驿站', buildings: ['notice', 'tavern'] },
+  ],
+}
+// 兼容旧格式：展平为数组供 pick() 使用
+const _flatTerrains = [...LOCATION_TERRAINS.town, ...LOCATION_TERRAINS.wild]
 
 // --- 随机心法描述模板 ---
 const XINFA_DESCRIPTIONS = [
@@ -456,11 +551,14 @@ export function generateProcEnemy (rank = 'huang', day = 1, seed = Date.now()) {
   const dayScale = 1 + (day - 1) / 500  // 第1天=1.0，第500天=2.0，第1000天=3.0
   const scale = rankMult * Math.min(dayScale, 3.0)
 
-  // 随机词缀
-  const hasPrefix = r(1) > 0.4
+  // 随机词缀（按等阶映射表决定前缀出现概率）
+  const rankCfg = RANK_IDENTITY_MAP[rank] || { tier: 'low', prefixChance: 0.4 }
+  const hasPrefix = r(1) > (1 - rankCfg.prefixChance)
   const enemyPrefix = hasPrefix ? pick(ENEMY_PREFIXES, seed + 1) : null
 
-  const identity = pick(ENEMY_IDENTITIES, seed + 2)
+  // 从对应档位抽取身份
+  const identityTier = ENEMY_IDENTITIES[rankCfg.tier]
+  const identity = pick(identityTier, seed + 2)
 
   const hasSuffix = r(3) > 0.3
   const enemySuffix = hasSuffix ? pick(ENEMY_SUFFIXES, seed + 3) : { name: '', multiplier: 1.0 }
@@ -481,8 +579,9 @@ export function generateProcEnemy (rank = 'huang', day = 1, seed = Date.now()) {
   const agility = Math.floor(baseAgility * finalScale * (0.9 + r(7) * 0.2))
   const constitution = Math.floor(baseConst * finalScale * (0.9 + r(8) * 0.2))
 
-  // 奖励
-  const gold = Math.floor(10 * finalScale)
+  // 奖励（受前缀影响：金色的敌人击杀掉落 ×3）
+  const goldMult = enemyPrefix?.buff === 'gold_bonus' ? enemyPrefix.val : 1.0
+  const gold = Math.floor(10 * finalScale * goldMult)
   const exp = Math.floor(20 * finalScale)
 
   // 名称
@@ -599,11 +698,15 @@ export function generateProcArmor (rank = 'huang', seed = Date.now()) {
 export function generateProcLocation (regionId = 'zhongyuan', seed = Date.now()) {
   const r = (offset = 0) => seededRand(seed + offset)
   const prefix = pick(LOCATION_PREFIXES, seed + 1)
-  const terrain = pick(LOCATION_TERRAINS, seed + 2)
+  // 野外/城镇比例约 6:4
+  const terrainPool = r(88) > 0.4 ? _flatTerrains : LOCATION_TERRAINS.wild
+  const terrain = pick(terrainPool, seed + 2)
   const name = `${prefix}${terrain.name}`
+  const townTypes = ['镇', '城', '寨', '堡', '宫', '阁', '观', '庙', '驿']
+  const isTown = townTypes.some(t => terrain.name.includes(t))
   return {
     name,
-    type: terrain.name.includes('镇') ? 'town' : terrain.name.includes('村') ? 'village' : terrain.name.includes('山') ? 'mountain' : terrain.name.includes('古') ? 'dungeon' : 'wilderness',
+    type: isTown ? 'town' : terrain.name.includes('山') ? 'mountain' : terrain.name.includes('古') || terrain.name.includes('冢') ? 'dungeon' : 'wilderness',
     buildings: terrain.buildings,
     desc: `这里是${name}。`,
     proc: true,

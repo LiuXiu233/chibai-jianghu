@@ -4,7 +4,7 @@ import { REGIONS, discoverHiddenLocation, getNeighborLocation, getRegionEntry } 
 import { MARTIAL_ARTS, XINFA, getResonanceEffect } from '../data/martialArts.js'
 import { ENEMY_TEMPLATES, spawnEnemy } from '../data/enemies.js'
 import { ITEMS, getItemById } from '../data/items.js'
-import { generateQuest, QUEST_TEMPLATES } from '../data/questTemplates.js'
+import { generateQuest as genQuest, generateQuestBatch, TIER_LABEL, generateChainQuest } from '../data/questGen.js'
 import { FATE_QUESTIONS, BASE_ATTRS, BASE_HP, BASE_QI, BASE_STAMINA } from '../data/fateQuestions.js'
 import {
   generateMartial, generateMartialsForHall, generateXinfa,
@@ -169,6 +169,9 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       }
       state.quests = []
       state.eventLog = []
+      state.worldEffects = []    // 世界效果（蝴蝶效应）[{type, expires_turn, ...}]
+      state.factionHostility = {} // 建筑敌意 { pharmacy: true, blacksmith: true }
+      state.priceMultipliers = {} // 物价倍率 { zhongyuan: 1.2, ... }
       state.clock = 0
       state.player.carry_weight = 0
       state.player.max_carry = calcMaxCarry(attrs)
@@ -301,52 +304,68 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
 
     // ---- 任务过期检查 ----
     checkTaskExpiration () {
-      const currentDay = Math.floor(state.clock / 96) + 1
+      const currentTurn = state.clock
       for (const q of state.quests) {
-        if (q.claimed || q.completed) continue
-        const createdDay = Math.floor((q.created_turn || 0) / 96) + 1
-        if (currentDay - createdDay > (q.expire_days || 99)) {
+        if (q.claimed || q.completed || q.expired) continue
+        const hoursPassed = Math.floor((currentTurn - (q.created_turn || 0)) / 4)
+        const expireHours = q.expire_hours || (q.expire_days || 3) * 24
+        if (hoursPassed >= expireHours) {
           q.expired = true
           this.addLog(`任务【${q.name}】已过期。`, 'system')
+          // 失败惩罚
+          if (q.failPenalty?.type === 'attr_damage') {
+            for (const [attr, delta] of Object.entries(q.failPenalty.attrs || {})) {
+              state.player.attrs[attr] = Math.max(0, (state.player.attrs[attr] || 0) + delta)
+            }
+            this.addLog(`任务失败，你的属性受损：${Object.entries(q.failPenalty.attrs || {}).map(([a, v]) => `${a}${v}`).join('、')}`, 'system')
+          }
         }
+      }
+      // 清理过期世界效果
+      const expiredEffects = state.worldEffects.filter(e => e.expires_turn <= currentTurn)
+      for (const effect of expiredEffects) {
+        if (effect.type === 'faction_hostile' && effect.faction) {
+          if (state.factionHostility?.[effect.faction]) {
+            state.factionHostility[effect.faction] = false
+            const name = { pharmacy: '药铺', blacksmith: '铁匠铺', tavern: '酒馆' }[effect.faction] || effect.faction
+            this.addLog(`${name}对你的敌意消退了。`, 'system')
+          }
+        }
+      }
+      state.worldEffects = state.worldEffects.filter(e => e.expires_turn > currentTurn)
+    },
+
+    // ---- 世界事件检查（季节/物价） ----
+    checkWorldEvents () {
+      const r = Math.random()
+      if (r < 0.02) {
+        // 红潮日（2% 概率）
+        state.worldEffects.push({ type: 'red_tide', expires_turn: state.clock + 48 })
+        this.addLog('⚠ 红潮日降临！所有建筑背景泛红，黑市价格减半，遇敌率翻倍。', 'system')
+      } else if (r < 0.05) {
+        // 物价波动（某区域商品涨跌 20%）
+        const regions = ['zhongyuan', 'xiyu', 'nanjiang', 'beihan', 'donghai']
+        const target = regions[Math.floor(Math.random() * regions.length)]
+        const mult = Math.random() > 0.5 ? 1.2 : 0.8
+        state.priceMultipliers[target] = mult
+        const regionName = { zhongyuan: '中原', xiyu: '西域', nanjiang: '南疆', beihan: '北寒', donghai: '东海' }[target] || target
+        this.addLog(`【物价波动】${regionName}区域商品价格发生变化${mult > 1 ? '上涨' : '下跌'}了20%。`, 'system')
       }
     },
 
     // ---- 连环任务续接（20% 概率） ----
     continueChainQuest (completedQuest) {
-      if (!completedQuest.series || completedQuest.series_index >= 4) return
+      if (!completedQuest.chain || completedQuest.chain.index >= 3) return
       if (Math.random() >= 0.2) return
-      const nextIndex = completedQuest.series_index + 1
-      const nextTemplates = QUEST_TEMPLATES.filter(t =>
-        t.series === completedQuest.series && t.series_index === nextIndex
-      )
-      if (!nextTemplates.length) return
-      const nextTemplate = nextTemplates[0]
       const regionId = state.player?.regionId || 'zhongyuan'
-      const diff = REGIONS.find(r => r.id === regionId)?.difficulty || 1
-      const quest = generateQuest(regionId, diff, state.clock + Math.random() * 1000)
-      // 用模板数据覆盖
-      quest.template_id = nextTemplate.id
-      quest.name = nextTemplate.name.replace('{location}', quest.goals?.[0]?.target || '某地')
-        .replace('{enemy}', quest.goals?.[0]?.target || '某人')
-      quest.desc = nextTemplate.desc.replace('{location}', quest.goals?.[0]?.target || '某地')
-        .replace('{enemy}', quest.goals?.[0]?.target || '某人')
-      quest.type = nextTemplate.type
-      quest.series = nextTemplate.series
-      quest.series_index = nextTemplate.series_index
-      quest.goals = nextTemplate.goals.map(g => ({
-        ...g,
-        target: typeof g.target === 'string' ? g.target : g.target,
-        count: typeof g.count === 'string' ? parseInt(g.count) : g.count,
-        current: 0,
-        completed: false,
-      }))
-      quest.rewards = nextTemplate.rewards
-      quest.expire_days = nextTemplate.expire_days
-      quest.created_turn = state.clock
-      quest.id = 'quest_' + Date.now()
-      state.quests.push(quest)
-      this.addLog(`【连环任务】你意外获得了新线索：「${quest.name}」！`, 'event')
+      const day = Math.floor(state.clock / 96) + 1
+      const tier = completedQuest.tier || 'huang'
+      const chainIdx = completedQuest.chain.index + 1
+      const nextQuest = generateChainQuest(tier, regionId, day, state.clock + chainIdx * 1111)
+      nextQuest.created_turn = state.clock
+      nextQuest.chain = { series: 'investigation', index: chainIdx }
+      state.quests.push(nextQuest)
+      this.addLog(`【连环任务】你意外获得了新线索：「${nextQuest.name}」！`, 'event')
     },
 
     // ---- 时间推进（ke = 刻，1刻=15分钟） ----
@@ -360,7 +379,10 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       state.player.current_stamina = Math.min(state.player.max_stamina, state.player.current_stamina + stamina_regen)
       state.player.current_qi = Math.min(state.player.max_qi, state.player.current_qi + qi_regen)
       // 任务过期检查（每24刻=6小时一次）
-      if (state.clock % 24 === 0) this.checkTaskExpiration()
+      if (state.clock % 24 === 0) {
+        this.checkTaskExpiration()
+        this.checkWorldEvents()
+      }
       // 检查生命
       if (state.player.current_hp <= 0) {
         state.phase = 'ending'
@@ -942,34 +964,59 @@ playerAction (action, martialId = null) {
     },
 
     // ---- 任务 ----
-    generateQuestForLocation () {
+    generateQuestForLocation (count = 1) {
       try {
         const regionId = state.player?.regionId || 'zhongyuan'
+        const day = Math.floor(state.clock / 96) + 1
         const diff = REGIONS.find(r => r.id === regionId)?.difficulty || 1
-        const quest = generateQuest(regionId, diff, state.clock + Math.random() * 1000)
-        quest.created_turn = state.clock
-        state.quests.push(quest)
-        return quest
+        if (count === 1) {
+          const quest = genQuest(regionId, diff, day, state.clock + Date.now())
+          quest.created_turn = state.clock
+          state.quests.push(quest)
+          this.addLog(`你查看了告示栏，发现了一条新任务：「${quest.name}」。`, 'event')
+          return quest
+        } else {
+          const quests = generateQuestBatch(regionId, diff, day, count, state.clock + Date.now())
+          quests.forEach(q => { q.created_turn = state.clock; state.quests.push(q) })
+          this.addLog(`你查看了告示栏，发现了 ${quests.length} 条新任务。`, 'event')
+          return quests
+        }
       } catch (e) {
         this.addLog('任务生成失败，请稍后再试。', 'system')
         return null
       }
     },
 
-    checkKillQuest (enemyName) {
+    checkKillQuest (enemyId, enemyName) {
       let completedQuest = null
       for (const q of state.quests) {
         if (q.completed || q.claimed || q.expired) continue
         for (const goal of q.goals) {
-          if (goal.type === 'kill' && enemyName.includes(goal.target)) {
+          // 同时匹配 enemyId（proc）或 enemyName（兼容性）
+          const matches = goal.type === 'kill' &&
+            ((goal.target && enemyId && goal.target === enemyId) ||
+             (goal.enemyName && enemyName && enemyName.includes(goal.enemyName.replace(/^[^\x00-\xFF]+/, ''))))
+          if (matches) {
             goal.current++
             if (goal.current >= goal.count) goal.completed = true
+            this.addLog(`任务【${q.name}】进度：${goal.current}/${goal.count}`, 'system')
           }
         }
         if (q.goals.every(g => g.completed)) {
           q.completed = true
           completedQuest = q
           this.addLog(`【任务完成】${q.name}！快去领取奖励吧！`, 'event')
+          // 应用世界效果
+          if (q.worldEffect) {
+            if (q.worldEffect.type === 'area_clear' || q.worldEffect.type === 'faction_hostile') {
+              state.worldEffects.push({ ...q.worldEffect, expires_turn: state.clock + (q.worldEffect.duration_hours || 72) * 4 })
+              if (q.worldEffect.type === 'faction_hostile') {
+                if (!state.factionHostility) state.factionHostility = {}
+                state.factionHostility[q.worldEffect.faction] = true
+              }
+              this.addLog(`【蝴蝶效应】${q.worldEffect.desc}`, 'system')
+            }
+          }
         }
       }
       // 连环任务续接（20% 概率）
@@ -987,10 +1034,17 @@ playerAction (action, martialId = null) {
           if (state.player.exp >= state.player.exp_needed) this.levelUp()
         }
         if (r.type === 'martial') {
-          const m = getRandomMartial(r.val)
+          const m = MARTIAL_ARTS.find(m => m.rank === r.val)
           if (m) {
             this.learnMartial(m.id)
             this.addLog(`你领悟了武学：「${m.name}」！`, 'event')
+          }
+        }
+        // 过程化武学奖励（来自 questGen）
+        if (r.type === 'proc_martial') {
+          if (r.martialData) {
+            this.learnProcMartial(r.val, r.martialName, r.martialData)
+            this.addLog(`你领悟了武学：「${r.martialName}」！`, 'event')
           }
         }
         if (r.type === 'random_item') {
@@ -1010,17 +1064,29 @@ playerAction (action, martialId = null) {
       state.building = { type, data: null }
       state.phase = 'building'
       if (type === 'notice') {
-        const quest = this.generateQuestForLocation()
-        state.building.data = quest
-        this.addLog(`你查看了告示栏，发现了一条新任务：「${quest.name}」。`, 'event')
+        const quests = this.generateQuestForLocation(3)
+        state.building.data = quests
+        if (quests.length) this.addLog(`你查看了告示栏，发现了 ${quests.length} 条新任务。`, 'event')
       } else if (type === 'blacksmith') {
-        this.addLog('铁匠铺：可修理装备。（功能开发中）', 'system')
+        if (state.factionHostility?.blacksmith) {
+          this.addLog('铁匠对你心怀敌意，拒绝为你服务。', 'system')
+          return
+        }
+        state.building.data = { type: 'blacksmith', level: Math.floor(Math.random() * 3) + 1 }
+        this.addLog(`铁匠铺：老板手艺${['一般', '不错', '精湛'][state.building.data.level - 1]}。（功能开发中）`, 'system')
       } else if (type === 'pharmacy') {
+        if (state.factionHostility?.pharmacy) {
+          this.addLog('药铺掌柜对你不屑一顾，拒绝出售药物。', 'system')
+          return
+        }
         // 随机卖药
         const drugs = ITEMS.filter(i => i.type === 'consumable')
         const drug = drugs[Math.floor(Math.random() * drugs.length)]
-        state.building.data = drug
-        this.addLog(`药铺里有一瓶${drug.name}，售价${drug.cost}两银子。`, 'event')
+        const regionId = state.player?.regionId || 'zhongyuan'
+        const priceMult = state.priceMultipliers?.[regionId] || 1.0
+        const price = Math.floor(drug.cost * priceMult)
+        state.building.data = { drug, price }
+        this.addLog(`药铺里有一瓶${drug.name}，售价${price}两银子。`, 'event')
       } else if (type === 'tavern') {
         const regionId = state.player?.regionId || 'zhongyuan'
         // 30% 概率触发隐藏地点线索
@@ -1380,6 +1446,9 @@ playerAction (action, martialId = null) {
           exp: q.expired,
           sid: q.series_index || 0,
         })),
+        we: (state.worldEffects || []).map(e => ({ t: e.type, x: e.expires_turn, ...e })),
+        fh: state.factionHostility || {},
+        pm: state.priceMultipliers || {},
       }
       // 压缩：用简单字符映射 + JSON
       const json = JSON.stringify(simplified)
@@ -1457,6 +1526,9 @@ playerAction (action, martialId = null) {
             quests: data.qs || [],
           })
           state.clock = data.c || 0
+          state.worldEffects = (data.we || []).map(e => ({ type: e.t, expires_turn: e.x, ...e }))
+          state.factionHostility = data.fh || {}
+          state.priceMultipliers = data.pm || {}
           state.quests = (data.qs || []).map(q => {
             if (!q) return null
             const base = { id: q.id || ('quest_' + Date.now() + Math.random()), template_id: q.tid, goals: (q.g || []).filter(g => g).map(g => ({ target: g.t, count: g.n, current: g.c })), completed: q.done, claimed: false, expired: q.exp, series_index: q.sid, created_turn: state.clock }
