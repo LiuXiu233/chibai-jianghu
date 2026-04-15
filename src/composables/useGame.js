@@ -17,7 +17,78 @@ import { getProcMartial, getProcXinfa } from '../data/procGen.js'
 
 // 时间单位：1刻 = 15分钟，1时辰 = 8刻，1天 = 96刻
 const MAX_TURNS = 96000 // 1000天 × 96刻
-const SAVE_KEY = 'chibai_save_v1'
+const SAVE_KEY = 'chibai_save_v2'
+const SAVE_VERSION = 'v2|'
+
+// ---- 初始状态模板 ----
+function getInitialState () {
+  return {
+    phase: 'init',
+    player: null,
+    world: null,
+    clock: 0,
+    quests: [],
+    eventLog: [],
+    combat: null,
+    building: null,
+    fateAnswers: [],
+    fateIndex: 0,
+    worldEffects: [],
+    factionHostility: {},
+    priceMultipliers: {},
+  }
+}
+
+// ---- 防抖自动存档 ----
+let _saveTimer = null
+let _isSaving = false
+
+function debouncedSave () {
+  if (_isSaving) return
+  clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    _isSaving = true
+    try {
+      const data = {
+        phase: state.phase,
+        player: state.player,
+        clock: state.clock,
+        quests: state.quests,
+        eventLog: state.eventLog,
+        worldEffects: state.worldEffects || [],
+        factionHostility: state.factionHostility || {},
+        priceMultipliers: state.priceMultipliers || {},
+      }
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data))
+    } catch (_) {
+      // 存档失败静默忽略，避免影响游戏
+    } finally {
+      _isSaving = false
+    }
+  }, 800)
+}
+
+function forceSave () {
+  clearTimeout(_saveTimer)
+  _isSaving = true
+  try {
+    const data = {
+      phase: state.phase,
+      player: state.player,
+      clock: state.clock,
+      quests: state.quests,
+      eventLog: state.eventLog,
+      worldEffects: state.worldEffects || [],
+      factionHostility: state.factionHostility || {},
+      priceMultipliers: state.priceMultipliers || {},
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data))
+  } catch (_) {
+    // ignore
+  } finally {
+    _isSaving = false
+  }
+}
 
 // 过程化武学/心法数据缓存（用于战斗时查找）
 const PROC_MARTIAL_CACHE = {}
@@ -40,18 +111,7 @@ function calcMaxCarry (attrs) {
 }
 
 // ---- 全局单例 ----
-const state = reactive({
-  phase: 'init', // init | fate | main | combat | building | ending
-  player: null,
-  world: null,
-  clock: 0, // 当前回合(刻)，1刻=15分钟，1时辰=8刻，1天=96刻
-  quests: [],
-  eventLog: [],
-  combat: null,
-  building: null,
-  fateAnswers: [],
-  fateIndex: 0,
-})
+const state = reactive(getInitialState())
 
 // ---- 导出状态（只读） ----
 export function useGame () {
@@ -392,6 +452,7 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
         state.phase = 'ending'
         this.addLog('时光飞逝，转眼间，千年已过。你的江湖路，至此终结。', 'system')
       }
+      debouncedSave()
     },
 
     // ---- 随机事件 ----
@@ -807,6 +868,7 @@ playerAction (action, martialId = null) {
         return { ok: false, reason: 'comprehension', required, current: p.attrs.悟性 }
       }
       p.martial_arts.push({ martial_id: martialId, mastery: 0, exp: 0 })
+      debouncedSave()
       return { ok: true }
     },
 
@@ -845,6 +907,7 @@ playerAction (action, martialId = null) {
         p.max_stamina += xf.attrs.stamina_max
         p.current_stamina += xf.attrs.stamina_max
       }
+      debouncedSave()
       return { ok: true }
     },
 
@@ -954,6 +1017,7 @@ playerAction (action, martialId = null) {
           }
         }
       }
+      debouncedSave()
     },
 
     unequipItem (slot) {
@@ -961,6 +1025,7 @@ playerAction (action, martialId = null) {
       if (slot === 'weapon') p.equipment.weapon = null
       if (slot === 'armor') p.equipment.armor = null
       if (slot === 'accessory') p.equipment.accessory = null
+      debouncedSave()
     },
 
     // ---- 任务 ----
@@ -1057,6 +1122,7 @@ playerAction (action, martialId = null) {
         }
       }
       this.addLog(`任务【${q.name}】奖励已领取！`, 'system')
+      debouncedSave()
     },
 
     // ---- 建筑 ----
@@ -1196,6 +1262,7 @@ playerAction (action, martialId = null) {
       // 注册到玩家已学列表
       p.procKnownMartials.push({ id: procId, data: procData, mastery: 0, exp: 0 })
       this.addLog(`你研读了${itemName}，习得了该武学！`, 'event')
+      debouncedSave()
       return { ok: true }
     },
 
@@ -1395,22 +1462,9 @@ playerAction (action, martialId = null) {
 
     // ---- 存档 ----
     saveGame () {
-      try {
-        const data = {
-          phase: state.phase,
-          player: state.player,
-          world: state.world,
-          clock: state.clock,
-          quests: state.quests,
-          eventLog: state.eventLog,
-        }
-        localStorage.setItem(SAVE_KEY, JSON.stringify(data))
-        this.addLog('游戏已自动存档。', 'system')
-        return true
-      } catch (e) {
-        this.addLog('存档失败！', 'system')
-        return false
-      }
+      forceSave()
+      this.addLog('游戏已自动存档。', 'system')
+      return true
     },
 
     exportSaveCode () {
@@ -1432,8 +1486,8 @@ playerAction (action, martialId = null) {
         eq: p.equipment,
         inv: p.inventory,
         ma: p.martial_arts,
-        xs: p.xinfa_slots,  // 新槽位系统
-        kx: p.known_xinfas || [],  // 已学会的心法
+        xs: p.xinfa_slots,
+        kx: p.known_xinfas || [],
         rid: p.regionId,
         lid: p.locationId,
         disc: p.discovered_locations || [],
@@ -1450,10 +1504,8 @@ playerAction (action, martialId = null) {
         fh: state.factionHostility || {},
         pm: state.priceMultipliers || {},
       }
-      // 压缩：用简单字符映射 + JSON
       const json = JSON.stringify(simplified)
-      // 使用自定义短编码
-      return this._compressSave(json)
+      return SAVE_VERSION + this._compressSave(json)
     },
 
     _compressSave (json) {
@@ -1486,18 +1538,29 @@ playerAction (action, martialId = null) {
     importSaveCode (code) {
       try {
         let json
+        let version = 'v1'
+        // 版本前缀处理
+        if (code.startsWith(SAVE_VERSION)) {
+          version = 'v2'
+          code = code.substring(SAVE_VERSION.length)
+        }
         if (code.length <= 40) {
-          // 新格式：32位内容 + 4位校验
+          // 32位内容 + 4位校验
           const payload = code.substring(0, 32)
           const stored = parseInt(code.substring(32, 36)) || 0
           const actual = Array.from(payload).reduce((a, c) => a + c.charCodeAt(0), 0) % 10000
           if (stored !== actual) throw new Error('checksum mismatch')
           json = decodeURIComponent(atob(payload))
         } else {
-          // 旧格式（直接 base64 JSON）
+          // 直接 base64 JSON
           json = decodeURIComponent(atob(code))
         }
         const data = JSON.parse(json)
+        // v1 → v2 迁移：补全缺失的世界字段
+        if (version === 'v1') {
+          data.fh = data.fh || {}
+          data.pm = data.pm || {}
+        }
         // 兼容新旧格式
         if (data.p) {
           // 旧格式完整对象
@@ -1546,7 +1609,7 @@ playerAction (action, martialId = null) {
 
     newGame () {
       localStorage.removeItem(SAVE_KEY)
-      Object.assign(state, { phase: 'init', player: null, world: null, clock: 0, quests: [], eventLog: [], combat: null, building: null, fateAnswers: [], fateIndex: 0 })
+      Object.assign(state, getInitialState())
       this.startFate()
     },
 
@@ -1571,5 +1634,8 @@ playerAction (action, martialId = null) {
       this.saveAdminData(data)
       ITEMS.push(data.items[data.items.length - 1])
     },
+
+    forceSave,
+    debouncedSave,
   }
 }

@@ -72,7 +72,11 @@
         <div class="section-title">共鸣效果</div>
         <div class="resonance-empty text-gray">装备相同元素属性的心法可触发共鸣</div>
         <div class="res-pair-hints">
-          <div v-for="pair in RESONANCE_PAIRS" :key="pair.name" class="res-pair-item">
+          <div
+            v-for="pair in RESONANCE_PAIRS"
+            :key="pair.name"
+            :class="['res-pair-item', activeResonancePair?.name === pair.name ? 'pair-active' : '']"
+          >
             <span class="el-tag">{{ elLabel[pair.elements[0]] }}</span>
             <span class="el-tag">{{ elLabel[pair.elements[1]] }}</span>
             <span class="text-gold">{{ pair.name }}</span>
@@ -275,6 +279,15 @@ const resonanceElements = computed(() => {
   if (!currentResonance.value) return []
   return currentResonance.value.elements
 })
+// 当前装备心法是否形成已知共鸣对（用于高亮）
+const activeResonancePair = computed(() => {
+  const equipped = [equippedMain.value, equippedSub1.value, equippedSub2.value].filter(Boolean)
+  if (equipped.length < 2) return null
+  return RESONANCE_PAIRS.find(p =>
+    equipped.some(x => x.element === p.elements[0]) &&
+    equipped.some(x => x.element === p.elements[1])
+  ) || null
+})
 
 const learnableByRank = computed(() => {
   const result = {}
@@ -465,6 +478,17 @@ function switchToSlot (xinfaId) {
 .resonance-empty { font-size: 12px; }
 .res-pair-hints { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .res-pair-item { display: flex; align-items: center; gap: 3px; font-size: 11px; }
+.pair-active {
+  border: 1px solid var(--gold);
+  background: rgba(184, 134, 11, 0.15);
+  border-radius: 3px;
+  padding: 3px 6px;
+  animation: resonance-glow 2s ease-in-out infinite;
+}
+@keyframes resonance-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(184, 134, 11, 0.3); }
+  50% { box-shadow: 0 0 12px rgba(184, 134, 11, 0.7); }
+}
 
 .el-tag {
   background: rgba(255,255,255,0.1);

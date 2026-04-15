@@ -86,9 +86,32 @@ init ──→ fate ──→ main ──┬── combat
 
 ---
 
-## 存档系统
+### 自动存档（防抖）
 
-### 自动存档
+`useGame.js` 内置防抖自动存档（800ms），在以下时机调用 `debouncedSave()`：
+
+- `advanceTurn()` — 每回合推进
+- `learnMartial()` / `learnProcMartial()` / `learnXinfa()` — 学会武学/心法
+- `equipItem()` / `unequipItem()` — 装备变更
+- `claimQuestReward()` — 领取任务奖励
+- `move()` — 成功移动（非遭遇战触发，`advanceTurn` 已覆盖）
+
+手动存档：调用 `game.saveGame()` 或 `game.forceSave()`（忽略防抖）。
+
+### 存档字段
+
+```js
+// 防抖自动存档
+{ phase, player, clock, quests, eventLog, worldEffects, factionHostility, priceMultipliers }
+
+// 精简导出码（32位 + 版本前缀）
+SAVE_VERSION = 'v2|'
+// 导入时自动迁移 v1 → v2，补全缺失世界字段
+```
+
+### 存档版本兼容
+
+存档码以 `v2|` 为版本前缀。旧格式存档（无版本号）导入时自动补全 `factionHostility` 和 `priceMultipliers` 字段。
 
 每次阶段切换时调用 `saveToStorage()`，保存完整 `state` 至 `localStorage['chibai_save_v1']`。
 

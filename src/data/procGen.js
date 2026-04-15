@@ -21,6 +21,30 @@ function range (min, max, seed) {
   return min + Math.floor(seededRand(seed) * (max - min + 1))
 }
 
+// ---- 防重历史记录（最近 N 个已使用的词）----
+const _LOC_PREFIX_HISTORY = []
+const _ENEMY_PREFIX_HISTORY = []
+
+// ---- 非线性敌人数值缩放（替代线性 1+(day-1)/500）----
+function getEnemyScaling (day) {
+  // 分段缩放：day 1-100 前期线性，day 100-300 对数中期，day 300-700 后期线性，day 700+ 渐近上限
+  const t = Math.min(1, (day - 1) / 700)
+  if (t < 0.14) return t / 0.14 * 0.2
+  if (t < 0.43) return 0.2 + (t - 0.14) / 0.29 * 0.3
+  if (t < 1.0) return 0.5 + (t - 0.43) / 0.57 * 0.3
+  return 0.8 + Math.log(1 + (day - 700) * 0.005) * 0.08
+}
+
+// ---- 武学品质下限校验（天/地阶）----
+function validateMartialQuality (martial) {
+  const floor = { tian: { mult: 2.0, effectChance: 0.6 }, di: { mult: 1.6, effectChance: 0.5 } }
+  const cfg = floor[martial.rank]
+  if (!cfg) return true
+  const multOk = (martial.effects?.[0]?.mult || 0) >= cfg.mult
+  const effectOk = martial.combat_effects && Object.keys(martial.combat_effects).length > 0
+  return multOk || effectOk
+}
+
 // ============================================================
 // 词库
 // ============================================================
@@ -386,6 +410,17 @@ const XINFA_DESCRIPTIONS = [
 // ============================================================
 
 export function generateProcMartial (rank = 'huang', seed = Date.now()) {
+  // 品质校验：天/地阶最多重新生成 3 次
+  let martial = null
+  let attempts = 0
+  do {
+    martial = _buildProcMartial(rank, seed + attempts * 7777)
+    attempts++
+  } while (!validateMartialQuality(martial) && attempts < 3)
+  return martial
+}
+
+function _buildProcMartial (rank, seed) {
   const r = (offset = 0) => seededRand(seed + offset)
   const rankMult = { tian: 2.0, di: 1.6, xuan: 1.3, huang: 1.0, wu: 0.7 }[rank] || 1.0
   const typeRoll = r(0)
@@ -404,8 +439,9 @@ export function generateProcMartial (rank = 'huang', seed = Date.now()) {
   const suffix = pick(suffixes, seed + 3)
   const name = `【${mood}】${verb}${suffix}`
 
-  // 随机词缀
-  const affix = r(4) > 0.5 ? pick(affixes, seed + 5) : null
+  // 随机词缀：天/地阶提高触发概率
+  const effectChance = rank === 'tian' ? 0.85 : rank === 'di' ? 0.75 : 0.5
+  const affix = r(4) > (1 - effectChance) ? pick(affixes, seed + 5) : null
 
   // 基础属性
   const power_base = Math.floor(10 * rankMult)
@@ -456,7 +492,6 @@ export function generateProcMartial (rank = 'huang', seed = Date.now()) {
     combat_effects: affix ? affix.effect : {},
     learn_req: { comprehension: { tian: 28, di: 22, xuan: 16, huang: 10, wu: 0 }[rank] || 10 },
     proc: true,
-    // 用于装备掉落时的物品数据
     itemData: {
       rank,
       attrs: attrVal,
@@ -547,14 +582,23 @@ export function generateProcEnemy (rank = 'huang', day = 1, seed = Date.now()) {
   const r = (offset = 0) => seededRand(seed + offset)
   const rankMult = { tian: 2.0, di: 1.6, xuan: 1.3, huang: 1.0, wu: 0.7 }[rank] || 1.0
 
-  // 时间演化缩放
-  const dayScale = 1 + (day - 1) / 500  // 第1天=1.0，第500天=2.0，第1000天=3.0
-  const scale = rankMult * Math.min(dayScale, 3.0)
+  // 非线性时间演化缩放
+  const dayScale = 1 + getEnemyScaling(day)
+  const scale = rankMult * Math.min(dayScale, 2.8)
 
-  // 随机词缀（按等阶映射表决定前缀出现概率）
+  // 随机词缀（按等阶映射表决定前缀出现概率）+ 防重
   const rankCfg = RANK_IDENTITY_MAP[rank] || { tier: 'low', prefixChance: 0.4 }
   const hasPrefix = r(1) > (1 - rankCfg.prefixChance)
-  const enemyPrefix = hasPrefix ? pick(ENEMY_PREFIXES, seed + 1) : null
+  let enemyPrefix = null
+  if (hasPrefix) {
+    let attempts = 0
+    do {
+      enemyPrefix = pick(ENEMY_PREFIXES, seed + 1 + attempts * 3)
+      attempts++
+    } while (_ENEMY_PREFIX_HISTORY.includes(enemyPrefix.name) && attempts < 8)
+    _ENEMY_PREFIX_HISTORY.push(enemyPrefix.name)
+    if (_ENEMY_PREFIX_HISTORY.length > 5) _ENEMY_PREFIX_HISTORY.shift()
+  }
 
   // 从对应档位抽取身份
   const identityTier = ENEMY_IDENTITIES[rankCfg.tier]
@@ -638,6 +682,12 @@ export function generateProcEnemy (rank = 'huang', day = 1, seed = Date.now()) {
     _buff: enemyPrefix ? { buff: enemyPrefix.buff, val: enemyPrefix.val } : null,
     _suffixBonus: enemySuffix.bonus || null,
     boss: rank === 'tian',
+    // 多阶段血条（天阶敌人）
+    phases: rank === 'tian' ? [
+      { threshold: 1.0, desc: '', speed_mult: 1.0, multi_attack: false },
+      { threshold: 0.5, desc: '浑身浴血，威势不减', speed_mult: 1.3, multi_attack: false },
+      { threshold: 0.2, desc: '濒死狂化，不死不休', speed_mult: 1.5, multi_attack: true },
+    ] : null,
     proc: true,
   }
 }
@@ -697,7 +747,16 @@ export function generateProcArmor (rank = 'huang', seed = Date.now()) {
 
 export function generateProcLocation (regionId = 'zhongyuan', seed = Date.now()) {
   const r = (offset = 0) => seededRand(seed + offset)
-  const prefix = pick(LOCATION_PREFIXES, seed + 1)
+  // 防重：最多尝试 8 次避免与历史重复
+  let prefix = null
+  let attempts = 0
+  do {
+    prefix = pick(LOCATION_PREFIXES, seed + 1 + attempts * 7)
+    attempts++
+  } while (_LOC_PREFIX_HISTORY.includes(prefix) && attempts < 8)
+  _LOC_PREFIX_HISTORY.push(prefix)
+  if (_LOC_PREFIX_HISTORY.length > 5) _LOC_PREFIX_HISTORY.shift()
+
   // 野外/城镇比例约 6:4
   const terrainPool = r(88) > 0.4 ? _flatTerrains : LOCATION_TERRAINS.wild
   const terrain = pick(terrainPool, seed + 2)

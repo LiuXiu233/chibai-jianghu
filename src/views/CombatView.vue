@@ -15,6 +15,9 @@
       <div class="enemy-name">
         <span :class="['rank-tag','rank-'+enemy.rank]">{{ rankLabel[enemy.rank] }}</span>
         {{ enemy.name }}
+        <span v-if="currentPhase && enemy.rank === 'tian' && currentPhase.desc" class="phase-tag">
+          {{ currentPhase.desc }}
+        </span>
       </div>
       <div class="hp-row">
         <span class="text-gray" style="font-size:11px">生命</span>
@@ -29,9 +32,9 @@
     <!-- 战斗日志 -->
     <div class="combat-log" ref="logEl">
       <div
-        v-for="(line, i) in combatLog"
+        v-for="(line, i) in displayedLogs"
         :key="i"
-        :class="['log-line', line.type || '']"
+        :class="['log-line', line.type || '', line.isNew ? 'log-new' : '']"
       >{{ line.text }}</div>
     </div>
 
@@ -101,7 +104,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGame } from '../composables/useGame'
 
@@ -112,8 +115,85 @@ const showMartials = ref(false)
 const logEl = ref(null)
 const flashRed = ref(false)
 
+// 逐条弹出的日志缓冲系统
+const displayedLogs = ref([])
+let pendingQueue = []
+let logTimer = null
+
+// 判断是否为关键日志（立即显示）
+function isKeyLog (logEntry) {
+  const text = typeof logEntry === 'string' ? logEntry : logEntry?.text || ''
+  return (
+    text.includes('伤害') ||
+    text.includes('暴击') ||
+    text.includes('击败') ||
+    text.includes('阶段') ||
+    text.includes('威胁') ||
+    text.includes('恢复') ||
+    text.includes('吸血') ||
+    text.includes('灼烧') ||
+    text.includes('共鸣')
+  )
+}
+
+function flushPending (immediate = false) {
+  if (!pendingQueue.length) return
+  const entry = pendingQueue.shift()
+  displayedLogs.value.push({ ...entry, isNew: true })
+  // 标记为非新（动画结束后移除动画类）
+  setTimeout(() => {
+    const idx = displayedLogs.value.findIndex(l => l === entry)
+    if (idx >= 0) displayedLogs.value[idx] = { ...entry, isNew: false }
+  }, 400)
+  if (pendingQueue.length) {
+    logTimer = setTimeout(() => flushPending(), immediate ? 0 : 250)
+  }
+}
+
+function syncLogs () {
+  const raw = state.combat?.log || []
+  // 计算新增的日志
+  const newEntries = raw.slice(displayedLogs.value.length)
+  if (!newEntries.length) return
+  // 分类：关键日志立即显示，其余进入队列
+  for (const entry of newEntries) {
+    const normalized = typeof entry === 'string' ? { text: entry, type: '' } : entry
+    if (isKeyLog(normalized)) {
+      displayedLogs.value.push({ ...normalized, isNew: true })
+      setTimeout(() => {
+        const idx = displayedLogs.value.findIndex(l => l === normalized)
+        if (idx >= 0) displayedLogs.value[idx] = { ...normalized, isNew: false }
+      }, 400)
+    } else {
+      pendingQueue.push(normalized)
+    }
+  }
+  // 开始弹出队列
+  if (pendingQueue.length && !logTimer) {
+    flushPending()
+  }
+}
+
+watch(() => state.combat?.log?.length, () => {
+  syncLogs()
+  nextTick(() => {
+    if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
+  })
+})
+
+// 战斗开始时重置日志
+watch(() => state.combat?.enemy?.id, () => {
+  clearTimeout(logTimer)
+  logTimer = null
+  pendingQueue = []
+  displayedLogs.value = []
+})
+
+onUnmounted(() => {
+  clearTimeout(logTimer)
+})
+
 const enemy = computed(() => state.combat?.enemy)
-const combatLog = computed(() => (state.combat?.log || []).map(l => typeof l === 'string' ? { text: l, type: '' } : l))
 const combatEnded = computed(() => !state.combat?.inCombat && enemy.value?.current_hp !== undefined)
 
 const playerMartials = computed(() => game.getKnownMartials().filter(m => {
@@ -124,6 +204,11 @@ const playerMartials = computed(() => game.getKnownMartials().filter(m => {
 const rankLabel = { tian: '天', di: '地', xuan: '玄', huang: '黄', wu: '无' }
 
 const enemyHpPct = computed(() => enemy.value ? Math.max(0, enemy.value.current_hp / enemy.value.max_hp * 100) : 0)
+const currentPhase = computed(() => {
+  if (!enemy.value?.phases) return null
+  const hpPct = enemyHpPct.value / 100
+  return enemy.value.phases.find(p => hpPct <= p.threshold) || enemy.value.phases[0]
+})
 const playerHpPct = computed(() => state.player ? Math.max(0, state.player.current_hp / game.computed.maxHP.value * 100) : 0)
 const playerQiPct = computed(() => state.player ? Math.max(0, state.player.current_qi / game.computed.maxQi.value * 100) : 0)
 const playerStaminaPct = computed(() => state.player ? Math.max(0, state.player.current_stamina / game.computed.maxStamina.value * 100) : 0)
@@ -144,11 +229,6 @@ function backToExplore () {
   showMartials.value = false
   router.push('/game/explore')
 }
-
-watch(() => combatLog.value.length, async () => {
-  await nextTick()
-  if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
-})
 
 // 天阶敌人红屏警告
 watch(enemy, (newEnemy) => {
@@ -198,6 +278,15 @@ watch(enemy, (newEnemy) => {
   gap: 6px;
 }
 
+.phase-tag {
+  font-size: 10px;
+  color: var(--red);
+  border: 1px solid var(--red);
+  padding: 1px 5px;
+  border-radius: 2px;
+  animation: blink 1s ease-in-out infinite;
+}
+
 .hp-row, .pstat-row {
   display: flex;
   align-items: center;
@@ -230,6 +319,15 @@ watch(enemy, (newEnemy) => {
 .log-line.combat { color: var(--red); font-weight: 600; }
 .log-line.system { color: var(--gold); }
 .log-line.enemy { color: var(--gray); font-style: italic; }
+
+/* 日志淡入动画 */
+.log-new {
+  animation: logFadeIn 0.35s ease forwards;
+}
+@keyframes logFadeIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 
 .player-section {
   flex-shrink: 0;
