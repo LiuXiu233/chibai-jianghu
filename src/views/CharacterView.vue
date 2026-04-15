@@ -265,7 +265,7 @@ const carryInfo = computed(() => {
 }
 
 .attr-name { font-size: 11px; color: var(--gray); }
-.attr-val { font-size: 18px; font-weight: 700; color: var(--white); }
+.attr-val { font-size: 18px; font-weight: 700; color: #1A1A1A; }
 .attr-bar-track { height: 3px; background: #222; border-radius: 2px; overflow: hidden; }
 
 .bonus-list { display: flex; flex-direction: column; gap: 3px; }
@@ -289,7 +289,7 @@ const carryInfo = computed(() => {
   background: var(--bg-card);
   border-radius: 3px;
 }
-.xf-name { flex: 1; font-size: 13px; color: var(--white); }
+.xf-name { flex: 1; font-size: 13px; color: #1A1A1A; }
 .xf-desc { font-size: 11px; }
 
 .stats-grid {
@@ -309,7 +309,7 @@ const carryInfo = computed(() => {
   gap: 3px;
 }
 
-.stat-val { font-size: 15px; font-weight: 700; color: var(--white); }
+.stat-val { font-size: 15px; font-weight: 700; color: #1A1A1A; }
 .stat-label { font-size: 10px; color: var(--gray); }
 
 .empty { font-size: 12px; text-align: center; padding: 8px; }

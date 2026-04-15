@@ -10,14 +10,14 @@
         <span class="stat-val">{{ Math.floor(state.player?.current_hp || 0) }}</span>
       </div>
       <div class="stat-bar">
-        <span class="stat-label">气</span>
+        <span class="stat-label text-gray">气</span>
         <div class="bar-track">
           <div class="bar-fill bar-qi" :style="{ width: qiPct + '%' }"></div>
         </div>
         <span class="stat-val">{{ Math.floor(state.player?.current_qi || 0) }}</span>
       </div>
       <div class="stat-bar">
-        <span class="stat-label">体</span>
+        <span class="stat-label text-gray">体</span>
         <div class="bar-track">
           <div class="bar-fill bar-stamina" :style="{ width: staminaPct + '%' }"></div>
         </div>
@@ -52,7 +52,7 @@ const actionPct = computed(() => state.player?.max_daily_actions ? (state.player
 
 <style scoped>
 .status-bar {
-  background: #080808;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   padding: 6px 10px;
   flex-shrink: 0;
@@ -84,7 +84,7 @@ const actionPct = computed(() => state.player?.max_daily_actions ? (state.player
 .bar-track {
   flex: 1;
   height: 4px;
-  background: #222;
+  background: var(--border);
   border-radius: 2px;
   overflow: hidden;
 }

@@ -116,7 +116,7 @@ function restart () {
 
 .summary-text {
   font-size: 16px;
-  color: var(--white);
+  color: #1A1A1A;
   line-height: 1.6;
 }
 
@@ -139,7 +139,7 @@ function restart () {
 }
 
 .s-label { font-size: 12px; color: var(--gray); }
-.s-val { font-size: 18px; font-weight: 700; color: var(--white); }
+.s-val { font-size: 18px; font-weight: 700; color: #1A1A1A; }
 
 .ending-final {
   font-size: 14px;

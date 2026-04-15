@@ -343,7 +343,7 @@ function clearSave () {
 
 .tab-active {
   border-color: var(--red);
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .admin-content {
@@ -357,7 +357,7 @@ function clearSave () {
 .form-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .form-grid {
@@ -427,7 +427,7 @@ function clearSave () {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .admin-note {

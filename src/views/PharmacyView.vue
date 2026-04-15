@@ -77,7 +77,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   cursor: pointer;
 }
 
-.view-title { font-size: 16px; font-weight: 700; color: var(--white); }
+.view-title { font-size: 16px; font-weight: 700; color: #1A1A1A; }
 
 .pharma-content {
   flex: 1;
@@ -104,7 +104,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
 }
 
 .drug-row { display: flex; align-items: center; gap: 6px; }
-.drug-name { flex: 1; font-size: 14px; color: var(--white); font-weight: 600; }
+.drug-name { flex: 1; font-size: 14px; color: #1A1A1A; font-weight: 600; }
 .drug-cost { font-size: 13px; }
 .drug-desc { font-size: 12px; }
 .drug-effect { font-size: 12px; }

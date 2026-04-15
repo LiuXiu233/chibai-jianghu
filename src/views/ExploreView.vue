@@ -122,7 +122,10 @@ function explore () {
   })
   if (!pool.length) return
   const enemy = pool[Math.floor(Math.random() * pool.length)]
-  game.startCombat(enemy)
+  const ok = game.startCombat(enemy)
+  if (ok !== false) {
+    router.push('/game/combat')
+  }
 }
 
 function goToBuilding (type) {
@@ -167,22 +170,22 @@ watch(() => state.eventLog.length, async () => {
   padding: 8px 12px;
   text-align: center;
   border-bottom: 1px solid var(--border);
-  background: #0a0a0a;
+  background: var(--bg-card);
 }
 
 .loc-region { font-size: 11px; font-weight: 600; }
-.loc-name { font-size: 18px; font-weight: 900; color: var(--white); }
+.loc-name { font-size: 18px; font-weight: 900; color: #1A1A1A; }
 .loc-type { font-size: 11px; }
 
 .log-container {
   flex: 1;
   overflow-y: auto;
   padding: 8px 10px;
-  background: #080808;
+  background: var(--white);
 }
 
-.log-line { font-size: 13px; line-height: 1.8; color: var(--white); }
-.log-line.event { color: var(--gray); }
+.log-line { font-size: 13px; line-height: 1.8; color: #333; }
+.log-line.event { color: #555; }
 .log-line.combat { color: var(--red); font-weight: 600; }
 .log-line.system { color: var(--gold); }
 
@@ -193,7 +196,7 @@ watch(() => state.eventLog.length, async () => {
   align-items: center;
   gap: 3px;
   padding: 8px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-top: 1px solid var(--border);
 }
 
@@ -206,7 +209,7 @@ watch(() => state.eventLog.length, async () => {
 .dir-btn {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  color: var(--white);
+  color: #1A1A1A;
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
@@ -236,7 +239,7 @@ watch(() => state.eventLog.length, async () => {
 .loc-actions {
   flex-shrink: 0;
   padding: 8px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -263,7 +266,7 @@ watch(() => state.eventLog.length, async () => {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 3px;
-  color: var(--white);
+  color: #1A1A1A;
   font-size: 12px;
   cursor: pointer;
   font-family: inherit;

@@ -144,6 +144,7 @@ export function useGame () {
         discovered_locations: [], // 酒馆传闻触发的隐藏地点
         enemy_kills: {},
         martialCooldowns: {}, // { martial_id: remainingTurns }
+        martialHallCooldown: 0, // 武馆学习冷却（回合）
         max_daily_actions: 34, // 24 + 耐力基准10
         daily_actions_used: 0,
         carry_weight: 0,
@@ -154,6 +155,7 @@ export function useGame () {
       state.player.carry_weight = 0
       state.player.max_carry = calcMaxCarry(attrs)
       state.player.martialCooldowns = {}
+      state.player.martialHallCooldown = 0
       state.player.discovered_locations = []
       state.player.max_daily_actions = 24 + (attrs.耐力 || 0)
       state.player.daily_actions_used = 0
@@ -184,7 +186,6 @@ export function useGame () {
 
     // ---- 移动 ----
     move (direction) {
-      // direction: 'north'|'south'|'east'|'west'
       const p = state.player
       // 行动上限检查
       if ((p.daily_actions_used || 0) >= p.max_daily_actions) {
@@ -204,21 +205,33 @@ export function useGame () {
         this.addLog('此路不通。', 'system')
         return
       }
-      p.locationId = neighbor.id
-      this.advanceTurn(1)
+      // 消耗1次行动
+      p.daily_actions_used = (p.daily_actions_used || 0) + 1
 
-      // 随机遭遇
-      const roll = Math.random()
-      if (roll < 0.15) {
+      // 检查是否触发随机遭遇
+      if (Math.random() < 0.15) {
         const difficulty = prevRegion?.difficulty || 1
-        const enemy = spawnEnemy(ENEMY_TEMPLATES[Math.floor(Math.random() * ENEMY_TEMPLATES.length)], difficulty, state.clock)
+        const enemyTemplate = ENEMY_TEMPLATES[Math.floor(Math.random() * ENEMY_TEMPLATES.length)]
+        const enemy = spawnEnemy(enemyTemplate, difficulty, state.clock)
         state.combat = { enemy, inCombat: true, log: [] }
         state.phase = 'combat'
+        p.locationId = neighbor.id
         this.addLog(`在${neighbor.name}附近，你遭遇了${enemy.name}！`, 'combat')
-      } else {
-        this.addLog(`你来到了【${prevRegion.name}·${neighbor.name}】。${neighbor.desc}`, 'event')
-        this.checkRandomEvent()
+        return
       }
+
+      // 无遭遇，移动成功
+      p.locationId = neighbor.id
+      this.addLog(`你来到了【${prevRegion.name}·${neighbor.name}】。${neighbor.desc}`, 'event')
+      // 新的一天重置
+      const prevDay = Math.floor((state.clock) / 24) + 1
+      this.advanceTurn(1)
+      const currDay = Math.floor(state.clock / 24) + 1
+      if (currDay > prevDay) {
+        p.daily_actions_used = 1 // 跨天后已计1次
+        this.addLog(`新的一天开始了。（今日已行动 1 / ${p.max_daily_actions} 次）`, 'system')
+      }
+      this.checkRandomEvent()
     },
 
     // ---- 跨区域移动 ----
@@ -315,18 +328,9 @@ export function useGame () {
       const qi_regen = Math.floor(2 * hours)
       state.player.current_stamina = Math.min(state.player.max_stamina, state.player.current_stamina + stamina_regen)
       state.player.current_qi = Math.min(state.player.max_qi, state.player.current_qi + qi_regen)
-      // 每日行动计数
-      state.player.daily_actions_used = (state.player.daily_actions_used || 0) + hours
-      // 刷新每日行动计数（新的一天）
-      const prevDay = Math.floor((state.clock - hours) / 24) + 1
-      const currDay = Math.floor(state.clock / 24) + 1
-      if (currDay > prevDay) {
-        state.player.daily_actions_used = hours
-        this.addLog(`新的一天开始了。（今日已行动 ${hours} / ${state.player.max_daily_actions} 次）`, 'system')
-      }
-      // 减少武学冷却
-      for (const [id, turns] of Object.entries(state.player.martialCooldowns || {})) {
-        if (turns > 0) state.player.martialCooldowns[id] = Math.max(0, turns - hours)
+      // 武馆学习冷却（大世界每回合-1）
+      if (state.player.martialHallCooldown > 0) {
+        state.player.martialHallCooldown = Math.max(0, state.player.martialHallCooldown - hours)
       }
       // 任务过期检查（每6小时一次）
       if (state.clock % 6 === 0) this.checkTaskExpiration()
@@ -370,13 +374,40 @@ export function useGame () {
       return true
     },
 
-    playerAction (action, martialId = null) {
+playerAction (action, martialId = null) {
       if (!state.combat || !state.combat.inCombat) return
       const e = state.combat.enemy
       const p = state.player
       let log = []
 
-      if (action === 'defend') {
+      // 每回合减少武学冷却1回合
+      for (const [id, turns] of Object.entries(p.martialCooldowns || {})) {
+        if (turns > 0) p.martialCooldowns[id] = Math.max(0, turns - 1)
+      }
+
+      if (action === 'basic_attack') {
+        // 普通攻击：基础伤害 = 力量 + 武器加成
+        let atk = p.attrs.力量 || 5
+        if (p.equipment?.weapon) {
+          const wpn = getItemById(p.equipment.weapon)
+          atk += wpn?.attrs?.power || 0
+        }
+        const baseDmg = atk + Math.floor(Math.random() * 5)
+        const isCrit = Math.random() < (p.attrs.幸运 || 0) / 300
+        const dmg = isCrit ? baseDmg * 2 : baseDmg
+        e.current_hp -= dmg
+        const critText = isCrit ? '【暴击！】' : ''
+        log.push(`你挥拳出击，对${e.name}造成${critText}${dmg}点伤害！`)
+        // 武器吸血
+        if (p.equipment?.weapon) {
+          const wpn = getItemById(p.equipment.weapon)
+          if (wpn?.special === 'lifesteal') {
+            const heal = Math.floor(dmg * (wpn.special_val || 0.1))
+            p.current_hp = Math.min(p.max_hp, p.current_hp + heal)
+            log.push(`【吸血】你从${wpn.name}吸取了${heal}点生命！`)
+          }
+        }
+      } else if (action === 'defend') {
         p.current_stamina = Math.min(p.max_stamina, p.current_stamina + 15)
         p.current_qi = Math.min(p.max_qi, p.current_qi + 10)
         log.push('你运气护体，进入防御姿态。')
@@ -667,12 +698,17 @@ export function useGame () {
 
     // ---- 任务 ----
     generateQuestForLocation () {
-      const regionId = state.player?.regionId || 'zhongyuan'
-      const diff = REGIONS.find(r => r.id === regionId)?.difficulty || 1
-      const quest = generateQuest(regionId, diff, state.clock + Math.random() * 1000)
-      quest.created_turn = state.clock
-      state.quests.push(quest)
-      return quest
+      try {
+        const regionId = state.player?.regionId || 'zhongyuan'
+        const diff = REGIONS.find(r => r.id === regionId)?.difficulty || 1
+        const quest = generateQuest(regionId, diff, state.clock + Math.random() * 1000)
+        quest.created_turn = state.clock
+        state.quests.push(quest)
+        return quest
+      } catch (e) {
+        this.addLog('任务生成失败，请稍后再试。', 'system')
+        return null
+      }
     },
 
     checkKillQuest (enemyName) {
@@ -786,6 +822,21 @@ export function useGame () {
       return true
     },
 
+    sellItem (itemId, quantity = 1) {
+      const p = state.player
+      const entry = p.inventory.find(i => i.item_id === itemId)
+      if (!entry || entry.quantity < quantity) return false
+      const item = getItemById(itemId)
+      if (!item) return false
+      // 售价 = 原价 × 0.4（40%回收价）
+      const sellPrice = Math.floor((item.cost || 10) * 0.4)
+      p.gold += sellPrice * quantity
+      entry.quantity -= quantity
+      if (entry.quantity <= 0) p.inventory = p.inventory.filter(i => i.item_id !== itemId)
+      this.addLog(`你出售了${item.name}×${quantity}，获得${sellPrice * quantity}两银子。`, 'event')
+      return true
+    },
+
     // ---- 装备强化 ----
     getUpgradeCost (itemId) {
       const item = getItemById(itemId)
@@ -818,9 +869,16 @@ export function useGame () {
     learnAtMartialHall () {
       const m = state.building?.data
       if (!m || !m.id) return
+      // 武馆冷却检查（20回合，约20小时）
+      if (state.player.martialHallCooldown > 0) {
+        this.addLog(`武馆传授需要间隔，你刚学过，还需等待${state.player.martialHallCooldown}回合。`, 'system')
+        return
+      }
       const result = this.learnMartial(m.id)
       if (result.ok) {
+        state.player.martialHallCooldown = 20
         this.addLog(`你学会了「${m.name}」！`, 'event')
+        state.building.data = null // 清空当前武学
       } else if (result.reason === 'already_known') {
         this.addLog('你已经会这门武学了。', 'system')
       } else if (result.reason === 'comprehension') {
@@ -934,7 +992,7 @@ export function useGame () {
           // 旧格式完整对象
           state.player = data.p
           state.clock = data.c
-          state.quests = data.q || []
+          state.quests = (data.q || []).filter(q => q)
         } else {
           // 新格式精简对象 → 还原完整 player
           const p = state.player
@@ -957,9 +1015,10 @@ export function useGame () {
           })
           state.clock = data.c || 0
           state.quests = (data.qs || []).map(q => {
-            const base = { id: q.id, template_id: q.tid, goals: (q.g || []).map(g => ({ target: g.t, count: g.n, current: g.c })), completed: q.done, claimed: false, expired: q.exp, series_index: q.sid, created_turn: state.clock }
+            if (!q) return null
+            const base = { id: q.id || ('quest_' + Date.now() + Math.random()), template_id: q.tid, goals: (q.g || []).filter(g => g).map(g => ({ target: g.t, count: g.n, current: g.c })), completed: q.done, claimed: false, expired: q.exp, series_index: q.sid, created_turn: state.clock }
             return base
-          })
+          }).filter(q => q)
         }
         state.phase = 'main'
         state.eventLog = [{ text: '存档已成功导入！', type: 'system', id: Date.now() }]

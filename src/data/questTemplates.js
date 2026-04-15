@@ -141,7 +141,9 @@ export function generateQuest (regionId, difficulty = 1, seed = Date.now()) {
 
   // 只选非连环任务的第一环
   const templates = QUEST_TEMPLATES.filter(t => !t.series || t.series_index === 1)
+  if (!templates.length) throw new Error('No quest templates available')
   const template = templates[Math.abs(s) % templates.length]
+  if (!template) throw new Error('Failed to select quest template')
 
   const fills = { '{location}': location, '{enemy}': enemy, '{item}': item, '{count}': count, '{gold}': gold, '{martial_rank}': mr }
 

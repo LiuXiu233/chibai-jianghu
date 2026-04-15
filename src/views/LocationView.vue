@@ -140,7 +140,7 @@ watch(() => state.eventLog.length, async () => {
 .loc-name {
   font-size: 18px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .loc-desc {
@@ -166,7 +166,7 @@ watch(() => state.eventLog.length, async () => {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 2px;
-  color: var(--white);
+  color: #1A1A1A;
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;

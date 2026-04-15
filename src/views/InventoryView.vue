@@ -191,7 +191,7 @@ function showItemDetail (entry) {
 
 .slot-item {
   font-size: 13px;
-  color: var(--white);
+  color: #1A1A1A;
   font-weight: 600;
 }
 
@@ -222,7 +222,7 @@ function showItemDetail (entry) {
 
 .tab-active {
   border-color: var(--red);
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .item-list {
@@ -249,7 +249,7 @@ function showItemDetail (entry) {
 .item-name {
   flex: 1;
   font-size: 14px;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .item-qty {
@@ -321,7 +321,7 @@ function showItemDetail (entry) {
 .modal-title {
   font-size: 18px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
   display: flex;
   align-items: center;
   gap: 8px;

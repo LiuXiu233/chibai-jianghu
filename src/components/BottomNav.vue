@@ -3,7 +3,7 @@
     <button
       v-for="item in navItems"
       :key="item.name"
-      :class="['nav-item', currentRoute === item.route ? 'active' : '']"
+      :class="['nav-item', isActive(item.route) ? 'active' : '']"
       @click="navigate(item.route)"
     >
       <span class="nav-icon">{{ item.icon }}</span>
@@ -22,13 +22,15 @@ const route = useRoute()
 const navItems = [
   { name: 'explore', label: '探索', icon: '🧭', route: '/game/explore' },
   { name: 'map', label: '地图', icon: '🗺', route: '/game/map' },
-  { name: 'combat', label: '战斗', icon: '⚔', route: '/game/combat' },
   { name: 'martial', label: '武功', icon: '📖', route: '/game/martial' },
   { name: 'inventory', label: '背包', icon: '🎒', route: '/game/inventory' },
   { name: 'character', label: '角色', icon: '👤', route: '/game/character' },
 ]
 
-const currentRoute = computed(() => route.path)
+function isActive (r) {
+  return route.path === r || route.path.startsWith(r + '/')
+}
+
 function navigate (r) {
   router.push(r)
 }
@@ -37,48 +39,51 @@ function navigate (r) {
 <style scoped>
 .bottom-nav {
   display: flex;
-  background: #0a0a0a;
+  flex-shrink: 0;
+  background: var(--white);
   border-top: 1px solid var(--border);
-  padding: 6px 0;
-  padding-bottom: max(6px, env(safe-area-inset-bottom));
-  overflow-x: auto;
-  scrollbar-width: none;
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom);
   gap: 0;
+  /* 确保底部固定 */
+  position: relative;
+  z-index: 10;
 }
-.bottom-nav::-webkit-scrollbar { display: none; }
 
 .nav-item {
   flex: 1;
-  min-width: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 4px 2px;
+  padding: 8px 0;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
   background: transparent;
   border: none;
-  border-radius: 0;
+  border-top: 2px solid transparent;
   cursor: pointer;
   font-family: inherit;
   transition: all 0.15s;
   color: var(--gray);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item.active {
   color: var(--red);
-}
-
-.nav-item.active .nav-icon {
-  text-shadow: 0 0 8px rgba(194,40,40,0.6);
+  border-top-color: var(--red);
+  background: rgba(194, 40, 40, 0.06);
 }
 
 .nav-icon {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
 }
 
 .nav-label {
   font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
 </style>

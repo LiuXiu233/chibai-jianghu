@@ -71,7 +71,7 @@ function loadGame () {
 .title-white {
   font-size: 80px;
   font-weight: 900;
-  color: var(--white);
+  color: #1A1A1A;
   line-height: 1;
   text-shadow: 0 0 20px rgba(255,255,255,0.2);
 }
@@ -79,7 +79,7 @@ function loadGame () {
 .title-sub {
   font-size: 32px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
   letter-spacing: 0.3em;
   margin-left: 8px;
 }

@@ -15,6 +15,10 @@ const routes = [
       { path: 'map', component: () => import('../views/MapView.vue'), name: 'map' },
       // 战斗（由探索触发，指向 CombatView）
       { path: 'combat', component: () => import('../views/CombatView.vue'), name: 'combat' },
+      // 旧路由兼容重定向
+      { path: 'location', redirect: '/game/explore' },
+      { path: 'quests', redirect: '/game/explore' },
+      { path: 'building/:type', redirect: '/game/explore' },
       // 背包
       { path: 'inventory', component: () => import('../views/InventoryView.vue'), name: 'inventory' },
       // 武功/心法

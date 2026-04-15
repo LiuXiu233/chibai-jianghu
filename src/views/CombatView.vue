@@ -2,7 +2,7 @@
   <div class="combat-view">
     <!-- 顶部状态 -->
     <div class="combat-status">
-      <div class="turn-indicator text-red">{{ enemy ? '⚔ 战斗' : '战斗结束' }}</div>
+      <div class="turn-indicator text-red">{{ enemy ? '⚔ 战斗进行中' : '战斗结束' }}</div>
     </div>
 
     <!-- 敌人 -->
@@ -16,7 +16,7 @@
         <div class="bar-track">
           <div class="bar-fill bar-hp" :style="{ width: enemyHpPct + '%' }"></div>
         </div>
-        <span class="bar-text">{{ Math.max(0, enemy.current_hp) }}/{{ enemy.max_hp }}</span>
+        <span class="bar-text">{{ Math.max(0, Math.floor(enemy.current_hp)) }}/{{ enemy.max_hp }}</span>
       </div>
       <div class="enemy-desc text-gray">{{ enemy.desc }}</div>
     </div>
@@ -74,7 +74,8 @@
 
       <!-- 基础动作 -->
       <div v-else class="basic-actions">
-        <button class="btn btn-red" @click="showMartials = true">⚔ 使用武学</button>
+        <button class="btn btn-red" @click="doAction('basic_attack')">👊 普通攻击</button>
+        <button class="btn btn-gold" @click="showMartials = true">⚔ 武学</button>
         <button class="btn btn-ghost" @click="doAction('defend')">🛡 防御</button>
         <button class="btn btn-ghost" @click="doAction('useItem')">💊 道具</button>
         <button class="btn btn-ghost" @click="doAction('flee')">🏃 逃跑</button>
@@ -85,6 +86,9 @@
     <div class="combat-over" v-if="combatEnded">
       <div class="over-title" :class="enemy?.current_hp <= 0 ? '' : 'defeat'">
         {{ enemy?.current_hp <= 0 ? '胜' : '败' }}
+      </div>
+      <div class="over-sub text-gray" v-if="enemy?.current_hp <= 0">
+        获得 {{ enemy?.reward_exp }} 经验，{{ enemy?.reward_gold }} 两银子
       </div>
       <button class="btn btn-red btn-lg" @click="backToExplore">返回探索</button>
     </div>
@@ -154,8 +158,8 @@ watch(() => combatLog.value.length, async () => {
 .combat-status {
   flex-shrink: 0;
   padding: 6px 12px;
-  background: rgba(194,40,40,0.1);
-  border-bottom: 1px solid var(--red-dark);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
   text-align: center;
 }
 
@@ -174,7 +178,7 @@ watch(() => combatLog.value.length, async () => {
 .enemy-name {
   font-size: 16px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -201,14 +205,14 @@ watch(() => combatLog.value.length, async () => {
 .combat-log {
   flex: 1;
   overflow-y: auto;
-  background: #080808;
+  background: var(--white);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.log-line { font-size: 13px; line-height: 1.7; color: var(--white); }
+.log-line { font-size: 13px; line-height: 1.7; color: #333; }
 .log-line.combat { color: var(--red); font-weight: 600; }
 .log-line.system { color: var(--gold); }
 .log-line.enemy { color: var(--gray); font-style: italic; }
@@ -218,6 +222,7 @@ watch(() => combatLog.value.length, async () => {
   padding: 8px 12px;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -226,7 +231,7 @@ watch(() => combatLog.value.length, async () => {
 .action-section {
   flex-shrink: 0;
   padding: 8px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -255,7 +260,7 @@ watch(() => combatLog.value.length, async () => {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 3px;
-  color: var(--white);
+  color: #1A1A1A;
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
@@ -282,7 +287,7 @@ watch(() => combatLog.value.length, async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: 16px;
   z-index: 10;
 }
 
@@ -293,6 +298,9 @@ watch(() => combatLog.value.length, async () => {
   text-shadow: 0 0 30px rgba(194,40,40,0.7);
 }
 .over-title.defeat { color: var(--gray); text-shadow: none; }
+.over-sub { font-size: 14px; }
 
 .btn-lg { padding: 12px 32px; font-size: 16px; }
+.btn-gold { border-color: var(--gold); color: var(--gold); }
+.btn-gold:hover { background: var(--gold); color: var(--bg); }
 </style>

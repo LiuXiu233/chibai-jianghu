@@ -72,7 +72,7 @@ const typeLabel = {
 }
 
 const filteredQuests = computed(() => {
-  const quests = state.quests || []
+  const quests = (state.quests || []).filter(q => q)
   return tab.value === 'active' ? quests.filter(q => !q.completed) : quests.filter(q => q.claimed)
 })
 </script>
@@ -106,7 +106,7 @@ const filteredQuests = computed(() => {
 
 .tab-active {
   border-color: var(--red);
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .quest-list {
@@ -136,7 +136,7 @@ const filteredQuests = computed(() => {
 .quest-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .quest-type { font-size: 12px; }
@@ -161,7 +161,7 @@ const filteredQuests = computed(() => {
   font-size: 12px;
 }
 
-.goal-target { width: 60px; color: var(--white); flex-shrink: 0; }
+.goal-target { width: 60px; color: #1A1A1A; flex-shrink: 0; }
 
 .goal-bar-wrap {
   flex: 1;

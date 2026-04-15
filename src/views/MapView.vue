@@ -10,44 +10,57 @@
       >{{ r.name }}</button>
     </div>
 
-    <!-- 地图区域 -->
-    <div class="map-canvas" ref="mapEl">
-      <!-- SVG 连接线 -->
-      <svg class="conn-svg" :viewBox="`0 0 ${canvasW} ${canvasH}`">
-        <line
-          v-for="(line, i) in connectionLines"
-          :key="i"
-          :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2"
-          stroke="#333" stroke-width="1.5" stroke-dasharray="3,3"
-        />
-      </svg>
-
-      <!-- 地点节点 -->
-      <div
-        v-for="loc in layoutLocations"
-        :key="loc.id"
-        :class="['map-node', loc.isCurrent ? 'current' : '', loc.isPortal ? 'portal' : '']"
-        :style="{ left: loc.x + 'px', top: loc.y + 'px' }"
-        @click="onLocClick(loc)"
-      >
-        <div class="node-dot" :class="'dot-' + loc.type"></div>
-        <div class="node-name">{{ loc.name }}</div>
-        <div class="node-type text-gray">{{ shortType[loc.type] }}</div>
+    <div class="map-body">
+      <!-- 当前地点 -->
+      <div class="cur-loc-card" v-if="currentLoc">
+        <div class="clc-tag">当前位置</div>
+        <div class="clc-name">{{ currentLoc.name }}</div>
+        <div class="clc-type text-gray">{{ typeLabel[currentLoc.type] || currentLoc.type }}</div>
+        <div class="clc-region text-gray">—— {{ currentRegion?.name }} ——</div>
+        <button class="btn btn-red btn-sm" @click="goExplore">前往探索</button>
       </div>
-    </div>
 
-    <!-- 底部提示 -->
-    <div class="map-legend">
-      <span class="legend-item"><span class="dot-current"></span> 当前位置</span>
-      <span class="legend-item"><span class="dot-portal"></span> 可传送</span>
-      <span class="legend-item"><span class="dot-dungeon"></span> 秘境</span>
-      <span class="legend-item"><span class="dot-city"></span> 城镇</span>
+      <!-- 相邻地点列表 -->
+      <div class="neighbors-section" v-if="neighbors.length">
+        <div class="section-label text-gray">—— 可前往 ——</div>
+        <div class="neighbor-list">
+          <div
+            v-for="n in neighbors"
+            :key="n.locId"
+            class="neighbor-item"
+          >
+            <div class="ni-dir">
+              <span class="dir-badge" :class="'dir-' + n.dir">{{ dirLabel[n.dir] }}</span>
+            </div>
+            <div class="ni-info">
+              <div class="ni-name">{{ n.name }}</div>
+              <div class="ni-type text-gray">{{ typeLabel[n.type] || n.type }}</div>
+            </div>
+            <button class="btn-move" @click="moveTo(n.locId, n.dir)">
+              {{ n.isPortal ? '传送' : '前往' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 本区域其他地点 -->
+      <div class="other-section" v-if="otherLocs.length">
+        <div class="section-label text-gray">—— 本区域其他地点 ——</div>
+        <div class="other-list">
+          <div v-for="loc in otherLocs" :key="loc.id" class="other-item">
+            <span :class="['rank-dot', 'dot-' + loc.type]"></span>
+            <span class="oi-name">{{ loc.name }}</span>
+            <span class="oi-type text-gray">{{ shortType[loc.type] }}</span>
+            <span v-if="loc.travelTo?.length" class="oi-portal text-red">可传送</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGame } from '../composables/useGame'
 import { REGIONS } from '../data/regions.js'
@@ -55,76 +68,20 @@ import { REGIONS } from '../data/regions.js'
 const router = useRouter()
 const game = useGame()
 const state = game.state
-const mapEl = ref(null)
 
 const allRegions = REGIONS
 const currentRegion = computed(() => REGIONS.find(r => r.id === state.player?.regionId))
+const currentLoc = computed(() => game.computed.currentLocation.value)
 
-// 布局：强制用圆形布局排列地点
-const canvasW = 340
-const canvasH = 500
-
-const layoutLocations = computed(() => {
-  const region = currentRegion.value
-  if (!region) return []
-  const locs = region.locations
-  const n = locs.length
-  // 圆形排列，当前位置在顶部
-  const cx = canvasW / 2
-  const cy = canvasH / 2
-  const r = Math.min(canvasW, canvasH) * 0.38
-
-  // 当前地点在顶部
-  const curIdx = locs.findIndex(l => l.id === state.player?.locationId)
-
-  return locs.map((loc, i) => {
-    let angle
-    if (i === curIdx) {
-      angle = -Math.PI / 2 // 顶部
-    } else {
-      // 其余均匀分布，跳过顶部
-      const others = n - 1
-      const offsetIdx = i < curIdx ? i : i - 1
-      angle = (offsetIdx / others) * Math.PI * 2 - Math.PI / 2
-    }
-    const x = cx + r * Math.cos(angle) - 24
-    const y = cy + r * Math.sin(angle) * 0.75 - 18
-    return {
-      ...loc,
-      x: Math.max(4, Math.min(canvasW - 52, x)),
-      y: Math.max(4, Math.min(canvasH - 40, y)),
-      isCurrent: loc.id === state.player?.locationId,
-      isPortal: !!loc.travelTo?.length,
-    }
-  })
-})
-
-// 生成连接线
-const connectionLines = computed(() => {
-  const region = currentRegion.value
-  if (!region) return []
-  const lines = []
-  const locMap = {}
-  layoutLocations.value.forEach(l => { locMap[l.id] = l })
-
-  for (const loc of region.locations) {
-    const from = locMap[loc.id]
-    if (!from) continue
-    const dirs = ['north', 'south', 'east', 'west']
-    for (const dir of dirs) {
-      const neighborId = loc.connections?.[dir]
-      if (!neighborId) continue
-      const to = locMap[neighborId]
-      if (!to) continue
-      // 避免重复画线（只画一次）
-      if (loc.id < neighborId) {
-        lines.push({ x1: from.x + 24, y1: from.y + 18, x2: to.x + 24, y2: to.y + 18 })
-      }
-    }
-  }
-  return lines
-})
-
+const dirLabel = { north: '北', south: '南', east: '东', west: '西' }
+const typeLabel = {
+  town: '城镇', city: '都市', village: '村落', mountain: '名山',
+  dungeon: '秘境', wilderness: '荒野', temple: '寺庙', sect: '门派',
+  pass: '关隘', valley: '幽谷', island: '孤岛', oasis: '绿洲',
+  fort: '堡垒', secret: '秘境', sea: '海域', reef: '礁石',
+  pirate: '贼窝', port: '港口', bay: '海湾', volcano: '火山',
+  brothel: '销金窟', mansion: '楼阁',
+}
 const shortType = {
   town: '镇', city: '城', village: '村', mountain: '山',
   dungeon: '洞', wilderness: '野', temple: '寺', sect: '派',
@@ -134,17 +91,88 @@ const shortType = {
   brothel: '楼', mansion: '庄',
 }
 
+// 找出相邻地点（直接连接的 + 传送门可前往的）
+const neighbors = computed(() => {
+  const loc = currentLoc.value
+  if (!loc) return []
+  const result = []
+  const dirs = ['north', 'south', 'east', 'west']
+
+  for (const dir of dirs) {
+    const neighborId = loc.connections?.[dir]
+    if (!neighborId) continue
+    // 找邻居信息
+    const region = currentRegion.value
+    const neighbor = region?.locations?.find(l => l.id === neighborId)
+    if (neighbor) {
+      result.push({
+        locId: neighbor.id,
+        name: neighbor.name,
+        type: neighbor.type,
+        dir,
+        isPortal: !!neighbor.travelTo?.length,
+      })
+    }
+  }
+
+  // 如果当前地点是传送门，加上其他区域入口
+  if (loc.travelTo?.length) {
+    for (const rid of loc.travelTo) {
+      const region = REGIONS.find(r => r.id === rid)
+      if (!region) continue
+      const entryLoc = region.locations?.find(l => l.id === region.entry)
+      if (entryLoc) {
+        result.push({
+          locId: entryLoc.id,
+          name: entryLoc.name + '（' + region.name + '）',
+          type: entryLoc.type,
+          dir: 'portal',
+          isPortal: true,
+          regionId: rid,
+        })
+      }
+    }
+  }
+
+  return result
+})
+
+// 本区域其他非相邻地点
+const otherLocs = computed(() => {
+  const region = currentRegion.value
+  const loc = currentLoc.value
+  if (!region || !loc) return []
+  const neighborIds = new Set()
+  for (const n of neighbors.value) neighborIds.add(n.locId)
+  neighborIds.add(loc.id)
+
+  return region.locations
+    .filter(l => !neighborIds.has(l.id))
+    .slice(0, 10) // 最多显示10个
+})
+
 function switchRegion (id) {
   game.travelToRegion(id)
 }
 
-function onLocClick (loc) {
-  // 如果点击的是当前位置，直接跳转探索
-  if (loc.isCurrent) {
-    router.push('/game/explore')
+function goExplore () {
+  router.push('/game/explore')
+}
+
+function moveTo (locId, dir) {
+  if (dir === 'portal') {
+    // 传送门跳转其他区域
+    const n = neighbors.value.find(x => x.locId === locId && x.regionId)
+    if (n) {
+      if (confirm(`确定前往【${n.name.replace(/（.*）/,'')}】吗？需要消耗8回合。`)) {
+        game.travelToRegion(n.regionId)
+      }
+    }
     return
   }
-  // 否则提示先移动（地图只做展示）
+  // 普通移动
+  game.move(dir)
+  router.push('/game/explore')
 }
 </script>
 
@@ -154,7 +182,7 @@ function onLocClick (loc) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #080808;
+  background: var(--bg);
 }
 
 .region-tabs {
@@ -164,6 +192,7 @@ function onLocClick (loc) {
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: none;
+  gap: 0;
 }
 .region-tabs::-webkit-scrollbar { display: none; }
 
@@ -178,99 +207,140 @@ function onLocClick (loc) {
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
 }
 .r-tab.active {
   color: var(--red);
   border-bottom-color: var(--red);
 }
 
-.map-canvas {
+.map-body {
   flex: 1;
-  position: relative;
-  overflow: auto;
-  padding: 8px;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.conn-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.map-node {
-  position: absolute;
-  width: 48px;
+.cur-loc-card {
+  background: var(--bg-card);
+  border: 1px solid var(--red-dark);
+  border-radius: 4px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  cursor: default;
-  user-select: none;
+  gap: 6px;
 }
 
-.node-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--gray);
-  border: 2px solid transparent;
+.clc-tag {
+  font-size: 11px;
+  color: var(--red);
+  background: rgba(194,40,40,0.15);
+  border: 1px solid var(--red-dark);
+  padding: 2px 8px;
+  border-radius: 2px;
 }
 
-.dot-city, .dot-town { background: #4a9eff; }
-.dot-dungeon, .dot-secret { background: #9b59b6; }
-.dot-temple, .dot-sect { background: var(--gold); }
-.dot-portal { background: var(--red); box-shadow: 0 0 6px rgba(194,40,40,0.6); }
-
-.map-node.current .node-dot {
-  background: var(--red);
-  border-color: var(--white);
-  box-shadow: 0 0 8px rgba(194,40,40,0.8);
-  width: 14px;
-  height: 14px;
-}
-.map-node.portal .node-dot {
-  background: var(--red);
-  box-shadow: 0 0 4px rgba(194,40,40,0.5);
+.clc-name {
+  font-size: 22px;
+  font-weight: 900;
+  color: #1A1A1A;
 }
 
-.node-name {
-  font-size: 10px;
-  color: var(--white);
-  text-align: center;
-  white-space: nowrap;
+.clc-type { font-size: 13px; }
+.clc-region { font-size: 12px; }
+
+.btn-sm {
+  padding: 7px 20px;
+  font-size: 13px;
+  border-radius: 3px;
+  margin-top: 4px;
 }
-.map-node.current .node-name { color: var(--red); font-weight: 700; }
 
-.node-type { font-size: 9px; }
-
-.map-legend {
-  flex-shrink: 0;
+.neighbors-section, .other-section {
   display: flex;
-  gap: 12px;
-  padding: 8px 12px;
-  background: #0a0a0a;
-  border-top: 1px solid var(--border);
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.legend-item {
+.section-label { font-size: 11px; letter-spacing: 0.1em; text-align: center; }
+
+.neighbor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.neighbor-item {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--gray);
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }
 
-.dot-current, .dot-portal {
+.ni-dir { flex-shrink: 0; }
+
+.dir-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.dir-north { background: rgba(100,149,237,0.2); color: #6495ed; border: 1px solid rgba(100,149,237,0.4); }
+.dir-south { background: rgba(255,140,0,0.2); color: #ffa500; border: 1px solid rgba(255,140,0,0.4); }
+.dir-east { background: rgba(50,205,50,0.2); color: #32cd32; border: 1px solid rgba(50,205,50,0.4); }
+.dir-west { background: rgba(255,182,193,0.2); color: #ffb6c1; border: 1px solid rgba(255,182,193,0.4); }
+.dir-portal { background: rgba(194,40,40,0.2); color: var(--red); border: 1px solid rgba(194,40,40,0.4); }
+
+.ni-info { flex: 1; }
+.ni-name { font-size: 14px; font-weight: 600; color: #1A1A1A; }
+.ni-type { font-size: 11px; }
+
+.btn-move {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  background: rgba(194,40,40,0.1);
+  border: 1px solid var(--red-dark);
+  border-radius: 3px;
+  color: var(--red);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-move:hover { background: rgba(194,40,40,0.2); }
+.btn-move:active { background: var(--red); color: white; }
+
+.other-list { display: flex; flex-direction: column; gap: 3px; }
+
+.other-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg-card);
+  border-radius: 3px;
+  opacity: 0.6;
+}
+
+.rank-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  display: inline-block;
+  flex-shrink: 0;
 }
-.dot-current { background: var(--red); }
-.dot-portal { background: var(--red); box-shadow: 0 0 4px rgba(194,40,40,0.5); }
-.dot-dungeon { background: #9b59b6; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.dot-city { background: #4a9eff; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-city, .dot-town { background: #4a9eff; }
+.dot-dungeon, .dot-secret { background: #9b59b6; }
+.dot-temple, .dot-sect { background: var(--gold); }
+.dot-portal { background: var(--red); }
+
+.oi-name { flex: 1; font-size: 12px; color: #1A1A1A; }
+.oi-type { font-size: 10px; }
+.oi-portal { font-size: 10px; }
 </style>

@@ -53,7 +53,7 @@ function answer (idx) {
 }
 
 function enterGame () {
-  router.push('/game/location')
+  router.push('/game/explore')
 }
 </script>
 
@@ -110,7 +110,7 @@ function enterGame () {
 .q-text {
   font-size: 20px;
   font-weight: 600;
-  color: var(--white);
+  color: #1A1A1A;
   text-align: center;
   line-height: 1.6;
   margin-bottom: 36px;
@@ -131,7 +131,7 @@ function enterGame () {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 3px;
-  color: var(--white);
+  color: #1A1A1A;
   font-family: inherit;
   font-size: 15px;
   cursor: pointer;
@@ -203,5 +203,5 @@ function enterGame () {
 }
 
 .attr-name { color: var(--gray); }
-.attr-val { color: var(--white); font-weight: 700; }
+.attr-val { color: #1A1A1A; font-weight: 700; }
 </style>

@@ -147,7 +147,7 @@ function back () {
 .building-name {
   font-size: 20px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .building-content {
@@ -170,7 +170,7 @@ function back () {
 .quest-offer-name {
   font-size: 16px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .quest-offer-desc {
@@ -196,7 +196,7 @@ function back () {
   gap: 10px;
 }
 
-.item-name { flex: 1; font-size: 14px; color: var(--white); }
+.item-name { flex: 1; font-size: 14px; color: #1A1A1A; }
 .item-cost { font-size: 14px; }
 
 .shop-gold { font-size: 13px; color: var(--gray); }
@@ -248,7 +248,7 @@ function back () {
 .teach-title {
   font-size: 16px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -300,7 +300,7 @@ function back () {
   gap: 8px;
 }
 
-.bslot-name { flex: 1; font-size: 14px; color: var(--white); }
+.bslot-name { flex: 1; font-size: 14px; color: #1A1A1A; }
 
 .bslot-empty { font-size: 13px; color: var(--gray); font-style: italic; }
 </style>

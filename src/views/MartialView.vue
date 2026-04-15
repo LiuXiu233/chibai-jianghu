@@ -121,7 +121,7 @@ function getReqComprehension (rank) {
 
 .tab-active {
   border-color: var(--red);
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .list-area {
@@ -148,7 +148,7 @@ function getReqComprehension (rank) {
 .m-name {
   flex: 1;
   font-size: 14px;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .m-type { font-size: 12px; }
@@ -206,7 +206,7 @@ function getReqComprehension (rank) {
 .modal-title {
   font-size: 18px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -229,7 +229,7 @@ function getReqComprehension (rank) {
   gap: 4px;
 }
 
-.attr-line { font-size: 13px; color: var(--white); }
+.attr-line { font-size: 13px; color: #1A1A1A; }
 
 .effects-title {
   font-size: 12px;
@@ -244,7 +244,7 @@ function getReqComprehension (rank) {
 
 .modal-mastery {
   font-size: 13px;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .modal-cooldown {

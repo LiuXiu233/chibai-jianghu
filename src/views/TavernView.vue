@@ -123,7 +123,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   cursor: pointer;
 }
 
-.view-title { font-size: 16px; font-weight: 700; color: var(--white); }
+.view-title { font-size: 16px; font-weight: 700; color: #1A1A1A; }
 
 .tavern-content {
   flex: 1;
@@ -184,7 +184,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   align-items: center;
 }
 
-.hc-name { font-size: 13px; color: var(--white); font-weight: 600; }
+.hc-name { font-size: 13px; color: #1A1A1A; font-weight: 600; }
 .hc-region { font-size: 11px; }
 
 .rest-section {

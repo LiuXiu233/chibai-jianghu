@@ -6,23 +6,22 @@
   --red-dark: #8B1A1A;
   --red-light: #E53935;
   --white: #FFFFFF;
-  --gray: #888888;
-  --gray-dark: #333333;
-  --gray-mid: #555555;
-  --gold: #FFD700;
-  --purple: #800080;
+  --gray: #555555;
+  --gray-dark: #CCCCCC;
+  --gray-mid: #888888;
+  --gold: #B8860B;
+  --purple: #6B238E;
   --blue: #1E3A8A;
-  --bg: #0D0D0D;
-  --bg-card: #1A1A1A;
-  --bg-card-hover: #222222;
-  --border: #333333;
+  --bg: #FFFFFF;
+  --bg-card: #F5F5F5;
+  --bg-card-hover: #EBEBEB;
+  --border: #DDDDDD;
 
-  /* 等级色 */
   /* 等级色（严格按 PRD: 天红/地金/玄紫/黄蓝/无灰）*/
   --tian-color: #FF0000;
-  --di-color: #FFD700;
-  --xuan-color: #800080;
-  --huang-color: #0000FF;
+  --di-color: #B8860B;
+  --xuan-color: #6B238E;
+  --huang-color: #1E3A8A;
   --wu-color: #888888;
 }
 
@@ -38,7 +37,7 @@ html, body {
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--bg);
-  color: var(--white);
+  color: #1A1A1A;
   font-family: 'Noto Serif SC', serif, 'Songti SC', 'SimSun', serif;
   font-size: 16px;
   line-height: 1.6;
@@ -65,7 +64,7 @@ html, body {
 .text-purple { color: var(--purple); }
 .text-blue { color: var(--blue); }
 .text-gray { color: var(--gray); }
-.text-white { color: var(--white); }
+.text-white { color: #1A1A1A; }
 .text-tian { color: var(--tian-color); font-weight: 700; }
 .text-di { color: var(--di-color); font-weight: 700; }
 .text-xuan { color: var(--xuan-color); font-weight: 700; }
@@ -95,8 +94,8 @@ html, body {
   gap: 6px;
   padding: 8px 20px;
   border: 1px solid var(--red);
-  background: transparent;
-  color: var(--white);
+  background: var(--red);
+  color: #1A1A1A;
   font-family: inherit;
   font-size: 15px;
   cursor: pointer;
@@ -107,16 +106,17 @@ html, body {
   user-select: none;
 }
 .btn:hover, .btn:focus {
-  background: var(--red);
-  color: var(--white);
+  background: var(--red-light);
+  border-color: var(--red-light);
+  color: #1A1A1A;
   outline: none;
 }
 .btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-red { background: var(--red); }
+.btn-red { background: var(--red); border-color: var(--red); color: #1A1A1A; }
 .btn-red:hover { background: var(--red-light); border-color: var(--red-light); }
-.btn-ghost { border-color: var(--gray); }
-.btn-ghost:hover { background: var(--gray); color: var(--white); }
+.btn-ghost { background: transparent; border-color: var(--border); color: #1A1A1A; }
+.btn-ghost:hover { background: var(--gray-dark); border-color: var(--gray-dark); color: #1A1A1A; }
 .btn-sm { padding: 5px 12px; font-size: 13px; }
 .btn-lg { padding: 12px 32px; font-size: 17px; }
 
@@ -132,7 +132,7 @@ html, body {
 .input {
   background: #111;
   border: 1px solid var(--border);
-  color: var(--white);
+  color: #1A1A1A;
   font-family: inherit;
   font-size: 14px;
   padding: 8px 12px;
@@ -192,7 +192,7 @@ html, body {
   transition: width 0.5s ease;
 }
 .bar-hp   { background: linear-gradient(90deg, #8B1A1A, #C22828); }
-.bar-qi   { background: linear-gradient(90deg, #555, #888); }
+.bar-qi   { background: linear-gradient(90deg, #666, #999); }
 .bar-stamina { background: linear-gradient(90deg, #1E3A8A, #3B82F6); }
 
 /* ---- 列表项 hover ---- */

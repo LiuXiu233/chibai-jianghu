@@ -51,13 +51,18 @@ const router = useRouter()
 const game = useGame()
 const state = game.state
 
-const activeQuests = computed(() => (state.quests || []).filter(q => !q.claimed))
+const activeQuests = computed(() => (state.quests || []).filter(q => q && !q.claimed))
 
 function back () { router.push('/game/explore') }
 
 function refresh () {
-  game.enterBuilding('notice')
-  router.push('/game/explore')
+  const active = (state.quests || []).filter(q => !q.claimed)
+  if (active.length >= 5) {
+    game.addLog('任务已满，请先完成或放弃一些任务。', 'system')
+    return
+  }
+  const quest = game.generateQuestForLocation()
+  game.addLog(`你发现了一条新任务：「${quest.name}」。`, 'event')
 }
 
 function claim (id) { game.claimQuestReward(id) }
@@ -94,7 +99,7 @@ function claim (id) { game.claimQuestReward(id) }
 .view-title {
   font-size: 16px;
   font-weight: 700;
-  color: var(--white);
+  color: #1A1A1A;
 }
 
 .notice-content {
@@ -124,7 +129,7 @@ function claim (id) { game.claimQuestReward(id) }
   gap: 6px;
 }
 
-.quest-name { font-size: 14px; font-weight: 700; color: var(--white); }
+.quest-name { font-size: 14px; font-weight: 700; color: #1A1A1A; }
 .quest-desc { font-size: 12px; color: var(--gray); line-height: 1.5; }
 .quest-goals { display: flex; flex-direction: column; gap: 3px; }
 .goal-row { display: flex; justify-content: space-between; font-size: 12px; }
