@@ -1,13 +1,14 @@
 // useGame.js — 全局游戏状态与核心逻辑
 import { reactive, computed, readonly } from 'vue'
 import { REGIONS, discoverHiddenLocation, getNeighborLocation, getRegionEntry } from '../data/regions.js'
-import { MARTIAL_ARTS, XINFA, getRandomMartial } from '../data/martialArts.js'
+import { MARTIAL_ARTS, XINFA, getRandomMartial, getResonanceEffect } from '../data/martialArts.js'
 import { ENEMY_TEMPLATES, spawnEnemy } from '../data/enemies.js'
 import { ITEMS, getItemById } from '../data/items.js'
 import { generateQuest, QUEST_TEMPLATES } from '../data/questTemplates.js'
 import { FATE_QUESTIONS, BASE_ATTRS, BASE_HP, BASE_QI, BASE_STAMINA } from '../data/fateQuestions.js'
 
-const MAX_TURNS = 24000 // 1000天 × 24小时
+// 时间单位：1刻 = 15分钟，1时辰 = 8刻，1天 = 96刻
+const MAX_TURNS = 96000 // 1000天 × 96刻
 const SAVE_KEY = 'chibai_save_v1'
 const ADMIN_KEY = 'chibai_admin_v1'
 
@@ -30,7 +31,7 @@ const state = reactive({
   phase: 'init', // init | fate | main | combat | building | ending
   player: null,
   world: null,
-  clock: 0, // 当前回合(小时)
+  clock: 0, // 当前回合(刻)，1刻=15分钟，1时辰=8刻，1天=96刻
   quests: [],
   eventLog: [],
   combat: null,
@@ -44,8 +45,15 @@ export function useGame () {
   return {
     state: readonly(state),
     computed: {
-      currentDay: computed(() => Math.floor(state.clock / 24) + 1),
-      currentHour: computed(() => (state.clock % 24) + 1),
+currentDay: computed(() => Math.floor(state.clock / 96) + 1),
+      // 时辰：12个时辰，每个8刻。刻数0-7为子时，8-15为丑时...
+      currentShichen: computed(() => {
+        const ke = state.clock % 96
+        const idx = Math.floor(ke / 8)
+        const shichenNames = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥']
+        return shichenNames[idx] + '时'
+      }),
+      currentKe: computed(() => (state.clock % 8) + 1),
       currentRegion: computed(() => {
         if (!state.player) return null
         return REGIONS.find(r => r.id === state.player.regionId)
@@ -136,17 +144,15 @@ export function useGame () {
         regionId: 'zhongyuan',
         locationId: 'qingyun',
         equipment: { weapon: null, armor: null, accessory: null },
-        martial_arts: [], // [{martial_id, mastery: 0-100}]
-        xinfas: [],
+martial_arts: [], // [{martial_id, mastery: 0-100}]
+        xinfa_slots: { main: null, sub1: null, sub2: null }, // 主心法 + 辅心法槽
         inventory: [], // [{item_id, quantity}]
         achievements: [],
         explored_locations: [],
         discovered_locations: [], // 酒馆传闻触发的隐藏地点
         enemy_kills: {},
         martialCooldowns: {}, // { martial_id: remainingTurns }
-        martialHallCooldown: 0, // 武馆学习冷却（回合）
-        max_daily_actions: 34, // 24 + 耐力基准10
-        daily_actions_used: 0,
+        martialHallCooldown: 0, // 武馆学习冷却（刻）
         carry_weight: 0,
       }
       state.quests = []
@@ -157,14 +163,11 @@ export function useGame () {
       state.player.martialCooldowns = {}
       state.player.martialHallCooldown = 0
       state.player.discovered_locations = []
-      state.player.max_daily_actions = 24 + (attrs.耐力 || 0)
-      state.player.daily_actions_used = 0
 
       // 初始武学（根据属性给予）
       if (attrs.力量 >= 14) this.learnMartial('luohan')
       if (attrs.气海 >= 14) this.learnMartial('jianfa')
       if (attrs.身法 >= 14) this.learnMartial('feihua')
-      if (attrs.悟性 >= 14) this.learnMartial('yijing')
       // 无论如何给一套基础武功（无级武学无悟性门槛）
       if (this.getKnownMartials().length === 0) {
         this.learnMartial('huanian')
@@ -187,11 +190,6 @@ export function useGame () {
     // ---- 移动 ----
     move (direction) {
       const p = state.player
-      // 行动上限检查
-      if ((p.daily_actions_used || 0) >= p.max_daily_actions) {
-        this.addLog('今日行动次数已用尽，请在酒馆休息等待明天。', 'system')
-        return
-      }
       // 负重超限检查
       const cw = this.computed.carryWeight.value
       if (cw > p.max_carry) {
@@ -205,10 +203,8 @@ export function useGame () {
         this.addLog('此路不通。', 'system')
         return
       }
-      // 消耗1次行动
-      p.daily_actions_used = (p.daily_actions_used || 0) + 1
 
-      // 检查是否触发随机遭遇
+      // 检查是否触发随机遭遇（移动消耗1刻）
       if (Math.random() < 0.15) {
         const difficulty = prevRegion?.difficulty || 1
         const enemyTemplate = ENEMY_TEMPLATES[Math.floor(Math.random() * ENEMY_TEMPLATES.length)]
@@ -216,21 +212,20 @@ export function useGame () {
         state.combat = { enemy, inCombat: true, log: [] }
         state.phase = 'combat'
         p.locationId = neighbor.id
+        this.advanceTurn(1)
         this.addLog(`在${neighbor.name}附近，你遭遇了${enemy.name}！`, 'combat')
         return
       }
 
-      // 无遭遇，移动成功
+      // 无遭遇，移动成功（消耗1刻）
       p.locationId = neighbor.id
-      this.addLog(`你来到了【${prevRegion.name}·${neighbor.name}】。${neighbor.desc}`, 'event')
-      // 新的一天重置
-      const prevDay = Math.floor((state.clock) / 24) + 1
+      const prevDay = Math.floor(state.clock / 96) + 1
       this.advanceTurn(1)
-      const currDay = Math.floor(state.clock / 24) + 1
+      const currDay = Math.floor(state.clock / 96) + 1
       if (currDay > prevDay) {
-        p.daily_actions_used = 1 // 跨天后已计1次
-        this.addLog(`新的一天开始了。（今日已行动 1 / ${p.max_daily_actions} 次）`, 'system')
+        this.addLog(`新的一天开始了。`, 'system')
       }
+      this.addLog(`你来到了【${prevRegion.name}·${neighbor.name}】。${neighbor.desc}`, 'event')
       this.checkRandomEvent()
     },
 
@@ -248,32 +243,55 @@ export function useGame () {
       this.addLog(`你长途跋涉，来到了【${region.name}·${entry?.name || region.name}】。${region.desc}`, 'event')
     },
 
-    // ---- 心法被动效果（每回合结算） ----
-    applyXinfaPassives (hours = 1) {
+    // ---- 获取已装备心法列表（含倍率） ----
+    getActiveXinfas () {
+      const slots = state.player?.xinfa_slots || {}
+      const result = []
+      if (slots.main) {
+        const xf = XINFA.find(x => x.id === slots.main)
+        if (xf) result.push({ ...xf, mult: 1.0 })
+      }
+      for (const slot of ['sub1', 'sub2']) {
+        if (slots[slot]) {
+          const xf = XINFA.find(x => x.id === slots[slot])
+          if (xf) result.push({ ...xf, mult: 0.4 })
+        }
+      }
+      return result
+    },
+
+    // ---- 获取共鸣效果 ----
+    getResonance () {
+      const active = this.getActiveXinfas()
+      return getResonanceEffect(active)
+    },
+
+    // ---- 心法被动效果（每刻结算） ----
+    applyXinfaPassives (ke = 1) {
       const p = state.player
       if (!p) return
-      for (const xf of (p.xinfas || [])) {
-        const xinfa = XINFA.find(x => x.id === xf.id)
-        if (!xinfa) continue
-        // 每回合回复5%生命值（易筋经）
-        if (xinfa.attrs.hp_regen) {
-          const heal = Math.floor(p.max_hp * xinfa.attrs.hp_regen / 100 * hours)
+      const active = this.getActiveXinfas()
+      for (const xf of active) {
+        // 每刻回复生命值
+        if (xf.attrs.hp_regen) {
+          const heal = Math.floor(p.max_hp * xf.attrs.hp_regen / 100 * ke * xf.mult)
           p.current_hp = Math.min(p.max_hp, p.current_hp + heal)
         }
-        // 每回合额外回复内力（九阳）
-        if (xinfa.attrs.qi_regen) {
-          const qi = Math.floor(xinfa.attrs.qi_regen * hours)
+        // 每刻额外回复内力
+        if (xf.attrs.qi_regen) {
+          const qi = Math.floor(xf.attrs.qi_regen * ke * xf.mult)
           p.current_qi = Math.min(p.max_qi, p.current_qi + qi)
         }
+        // hp 固定加成（首修时已应用）
       }
     },
 
     // ---- 任务过期检查 ----
     checkTaskExpiration () {
-      const currentDay = Math.floor(state.clock / 24) + 1
+      const currentDay = Math.floor(state.clock / 96) + 1
       for (const q of state.quests) {
         if (q.claimed || q.completed) continue
-        const createdDay = Math.floor((q.created_turn || 0) / 24) + 1
+        const createdDay = Math.floor((q.created_turn || 0) / 96) + 1
         if (currentDay - createdDay > (q.expire_days || 99)) {
           q.expired = true
           this.addLog(`任务【${q.name}】已过期。`, 'system')
@@ -318,22 +336,22 @@ export function useGame () {
       this.addLog(`【连环任务】你意外获得了新线索：「${quest.name}」！`, 'event')
     },
 
-    // ---- 时间推进 ----
-    advanceTurn (hours = 1) {
-      state.clock += hours
+    // ---- 时间推进（ke = 刻，1刻=15分钟） ----
+    advanceTurn (ke = 1) {
+      state.clock += ke
       // 心法被动效果
-      this.applyXinfaPassives(hours)
-      // 恢复体力/内力
-      const stamina_regen = Math.floor(5 * hours)
-      const qi_regen = Math.floor(2 * hours)
+      this.applyXinfaPassives(ke)
+      // 恢复体力/内力（1刻约恢复0.5体力，0.25内力）
+      const stamina_regen = Math.ceil(ke / 2)
+      const qi_regen = Math.ceil(ke / 4)
       state.player.current_stamina = Math.min(state.player.max_stamina, state.player.current_stamina + stamina_regen)
       state.player.current_qi = Math.min(state.player.max_qi, state.player.current_qi + qi_regen)
-      // 武馆学习冷却（大世界每回合-1）
+      // 武馆学习冷却（大世界每刻-1）
       if (state.player.martialHallCooldown > 0) {
-        state.player.martialHallCooldown = Math.max(0, state.player.martialHallCooldown - hours)
+        state.player.martialHallCooldown = Math.max(0, state.player.martialHallCooldown - ke)
       }
-      // 任务过期检查（每6小时一次）
-      if (state.clock % 6 === 0) this.checkTaskExpiration()
+      // 任务过期检查（每24刻=6小时一次）
+      if (state.clock % 24 === 0) this.checkTaskExpiration()
       // 检查生命
       if (state.player.current_hp <= 0) {
         state.phase = 'ending'
@@ -363,10 +381,6 @@ export function useGame () {
 
     // ---- 战斗 ----
     startCombat (enemy) {
-      if ((state.player.daily_actions_used || 0) >= state.player.max_daily_actions) {
-        this.addLog('今日行动次数已用尽，无法继续战斗。', 'system')
-        return false
-      }
       const spawned = spawnEnemy(enemy, state.player ? REGIONS.find(r => r.id === state.player.regionId)?.difficulty || 1 : 1)
       state.combat = { enemy: spawned, inCombat: true, log: [], playerTurn: true }
       state.phase = 'combat'
@@ -385,28 +399,59 @@ playerAction (action, martialId = null) {
         if (turns > 0) p.martialCooldowns[id] = Math.max(0, turns - 1)
       }
 
+      // 心法效果收集
+      const activeXinfas = this.getActiveXinfas()
+      const resonance = this.getResonance()
+
+      // 计算心法吸血倍率
+      let totalLifesteal = 0
+      let critMultBonus = 0
+      for (const xf of activeXinfas) {
+        if (xf.combat_effects?.lifesteal) totalLifesteal += xf.combat_effects.lifesteal * xf.mult
+        if (xf.combat_effects?.crit_mult_bonus) critMultBonus += xf.combat_effects.crit_mult_bonus * xf.mult
+      }
+      // 武器吸血
+      if (p.equipment?.weapon) {
+        const wpn = getItemById(p.equipment.weapon)
+        if (wpn?.special === 'lifesteal') totalLifesteal += (wpn.special_val || 0.1)
+      }
+
+      function applyLifesteal (dmg, source) {
+        if (totalLifesteal <= 0) return
+        const heal = Math.floor(dmg * totalLifesteal)
+        p.current_hp = Math.min(p.max_hp, p.current_hp + heal)
+        log.push(`【心法·吸血】从${source}吸取了${heal}点生命！`)
+      }
+
+      function applyResonanceDot () {
+        // 灼热共鸣：攻击时20%触发灼烧
+        if (resonance?.effect?.dot_chance && Math.random() < resonance.effect.dot_chance) {
+          state.combat.dotEffect = { dmg: resonance.effect.dot_dmg, dur: resonance.effect.dot_dur }
+          log.push(`【共鸣·灼热】敌人受到灼烧效果！每回合损失${resonance.effect.dot_dmg}生命！`)
+        }
+        // 阴阳交汇：HP>80%时伤害+10%
+        if (resonance?.effect?.high_hp_dmg && p.current_hp / p.max_hp > 0.8) {
+          return resonance.effect.high_hp_dmg
+        }
+        return 0
+      }
+
       if (action === 'basic_attack') {
-        // 普通攻击：基础伤害 = 力量 + 武器加成
         let atk = p.attrs.力量 || 5
         if (p.equipment?.weapon) {
           const wpn = getItemById(p.equipment.weapon)
           atk += wpn?.attrs?.power || 0
         }
         const baseDmg = atk + Math.floor(Math.random() * 5)
-        const isCrit = Math.random() < (p.attrs.幸运 || 0) / 300
-        const dmg = isCrit ? baseDmg * 2 : baseDmg
+        const critChance = (p.attrs.幸运 || 0) / 300 + (critMultBonus / 100)
+        const isCrit = Math.random() < critChance
+        const critMult = isCrit ? (2 + critMultBonus) : 1
+        const resonanceBonus = applyResonanceDot()
+        const dmg = Math.floor(baseDmg * critMult * (1 + resonanceBonus))
         e.current_hp -= dmg
-        const critText = isCrit ? '【暴击！】' : ''
+        const critText = isCrit ? `【暴击×${critMult.toFixed(1)}！】` : ''
         log.push(`你挥拳出击，对${e.name}造成${critText}${dmg}点伤害！`)
-        // 武器吸血
-        if (p.equipment?.weapon) {
-          const wpn = getItemById(p.equipment.weapon)
-          if (wpn?.special === 'lifesteal') {
-            const heal = Math.floor(dmg * (wpn.special_val || 0.1))
-            p.current_hp = Math.min(p.max_hp, p.current_hp + heal)
-            log.push(`【吸血】你从${wpn.name}吸取了${heal}点生命！`)
-          }
-        }
+        applyLifesteal(dmg, '普通攻击')
       } else if (action === 'defend') {
         p.current_stamina = Math.min(p.max_stamina, p.current_stamina + 15)
         p.current_qi = Math.min(p.max_qi, p.current_qi + 10)
@@ -423,16 +468,17 @@ playerAction (action, martialId = null) {
           log.push('逃跑失败！')
         }
       } else if (action === 'useItem') {
-        // 使用背包第一个消耗品
         const drug = p.inventory.find(i => {
           const item = getItemById(i.item_id)
           return item && item.type === 'consumable'
         })
         if (drug) {
           const item = getItemById(drug.item_id)
-          if (item.effect.hp) p.current_hp = Math.min(p.max_hp, p.current_hp + item.effect.hp)
-          if (item.effect.qi) p.current_qi = Math.min(p.max_qi, p.current_qi + item.effect.qi)
-          if (item.effect.stamina) p.current_stamina = Math.min(p.max_stamina, p.current_stamina + item.effect.stamina)
+          // 共鸣·中正：所有回复效果+20%
+          const healBonus = resonance?.effect?.heal_bonus || 0
+          if (item.effect.hp) p.current_hp = Math.min(p.max_hp, p.current_hp + Math.floor(item.effect.hp * (1 + healBonus)))
+          if (item.effect.qi) p.current_qi = Math.min(p.max_qi, p.current_qi + Math.floor(item.effect.qi * (1 + healBonus)))
+          if (item.effect.stamina) p.current_stamina = Math.min(p.max_stamina, p.current_stamina + Math.floor(item.effect.stamina * (1 + healBonus)))
           drug.quantity--
           if (drug.quantity <= 0) p.inventory = p.inventory.filter(i => i.item_id !== drug.item_id)
           log.push(`你使用了${item.name}。`)
@@ -442,7 +488,6 @@ playerAction (action, martialId = null) {
         const martial = MARTIAL_ARTS.find(m => m.id === martialId)
         if (!known || !martial) return
 
-        // 冷却检查
         const cd = p.martialCooldowns[martialId] || 0
         if (cd > 0) {
           log.push(`${martial.name}正在冷却中，还需等待${cd}回合。`)
@@ -451,7 +496,6 @@ playerAction (action, martialId = null) {
           const masteryBonus = 1 + mastery / 200
           const attrVal = martial.type === 'external' ? p.attrs.力量 : p.attrs.气海
           const mult = martial.effects?.[0]?.mult || 1.5
-          // 空手流派（weapon === null）享受 unarmedMult 加成
           const unarmedMult = martial.weapon === null ? (martial.unarmedMult || 1.2) : 1
           const power = Math.floor((attrVal * mult + martial.attrs?.power || 0) * masteryBonus * unarmedMult)
           const consume_stamina = martial.effects?.[0]?.consume?.stamina || 5
@@ -460,32 +504,28 @@ playerAction (action, martialId = null) {
           if (p.current_stamina < consume_stamina && p.current_qi < consume_qi) {
             log.push(`${martial.name}需要消耗体力${consume_stamina}点或内力${consume_qi}点，你目前均不足！`)
           } else {
-            // 扣除消耗（优先体力，不足扣内力）
             if (p.current_stamina >= consume_stamina) {
               p.current_stamina -= consume_stamina
             } else {
               p.current_qi -= consume_qi
             }
-            // 暴击
-            const critChance = p.attrs.幸运 / 300 + mastery / 2000
+            // 暴击（含心法加成）
+            const critChance = p.attrs.幸运 / 300 + mastery / 2000 + critMultBonus / 100
             const isCrit = Math.random() < critChance
-            const finalDmg = isCrit ? power * 2 : power
+            const critMultVal = isCrit ? (2 + critMultBonus) : 1
+            const resonanceBonus = applyResonanceDot()
+            const finalDmg = Math.floor(power * critMultVal * (1 + resonanceBonus))
             e.current_hp -= finalDmg
-            const critText = isCrit ? '【暴击！】' : ''
+            const critText = isCrit ? `【暴击×${critMultVal.toFixed(1)}！】` : ''
             log.push(`你使出「${martial.name}」，对${e.name}造成${critText}${finalDmg}点伤害！`)
+            applyLifesteal(finalDmg, martial.name)
 
-            // 武器特效（仅当装备武器时生效）
-            const weaponId = p.equipment?.weapon
-            if (weaponId) {
-              const weapon = getItemById(weaponId)
-              if (weapon?.special === 'lifesteal') {
-                const heal = Math.floor(finalDmg * (weapon.special_val || 0.1))
-                p.current_hp = Math.min(p.max_hp, p.current_hp + heal)
-                log.push(`【吸血】你从${weapon.name}吸取了${heal}点生命！`)
-              }
+            // DOT效果（红莲烈焰掌等）
+            if (martial.effects?.[0]?.dot) {
+              state.combat.dotEffect = { dmg: martial.effects[0].dot.dmg, dur: martial.effects[0].dot.dur }
+              log.push(`【灼烧】${e.name}受到持续灼烧！`)
             }
 
-            // 经验
             known.exp = (known.exp || 0) + 2
             if (known.exp >= 50) {
               known.mastery = Math.min(100, (known.mastery || 0) + 1)
@@ -493,11 +533,18 @@ playerAction (action, martialId = null) {
               log.push(`你的「${martial.name}」更加精熟了！`)
             }
 
-            // 设置冷却（根据武学等级，天/地/玄/黄/无 = 3/4/5/6/8 回合）
             const cdMap = { tian: 3, di: 4, xuan: 5, huang: 6, wu: 8 }
             p.martialCooldowns[martialId] = cdMap[martial.rank] || 6
           }
         }
+      }
+
+      // 共鸣DOT效果：每回合结算
+      if (state.combat.dotEffect && state.combat.dotEffect.dur > 0) {
+        const dotDmg = state.combat.dotEffect.dmg
+        e.current_hp -= dotDmg
+        log.push(`【灼烧】${e.name}损失了${dotDmg}点生命！`)
+        state.combat.dotEffect.dur--
       }
 
       // 敌人回合
@@ -547,16 +594,35 @@ playerAction (action, martialId = null) {
       const logs = []
       const atk = e.power + Math.floor(Math.random() * 10)
 
-      // 玩家装备特效：闪避（流影扇 dodge: 10 → 10% 额外闪避）
+      // 心法闪避加成
+      const activeXinfas = this.getActiveXinfas()
+      const resonance = this.getResonance()
       let totalDodge = p.attrs.身法 / 200
+      for (const xf of activeXinfas) {
+        if (xf.combat_effects?.dodge_bonus) totalDodge += (xf.combat_effects.dodge_bonus / 100) * xf.mult
+      }
+      if (resonance?.effect?.dodge_bonus) totalDodge += resonance.effect.dodge_bonus / 100
       if (p.equipment?.weapon) {
         const wpn = getItemById(p.equipment.weapon)
         if (wpn?.special === 'dodge') totalDodge += (wpn.special_val || 0) / 100
       }
+
       if (Math.random() < totalDodge) {
         logs.push(`${e.name}的攻击被你闪避了！`)
+        // 寒彻共鸣：闪避后25%概率反击
+        if (resonance?.effect?.counter_on_dodge && Math.random() < resonance.effect.counter_on_dodge) {
+          const counterDmg = resonance.effect.counter_dmg || 15
+          e.current_hp -= counterDmg
+          logs.push(`【共鸣·寒彻】你闪避后反击，造成${counterDmg}点伤害！`)
+        }
       } else {
-        // 玩家装备特效：防御（太极剑 defense: 15）
+        // 心法伤害减免
+        let damageReduction = 0
+        for (const xf of activeXinfas) {
+          if (xf.combat_effects?.damage_reduction) damageReduction += xf.combat_effects.damage_reduction * xf.mult
+        }
+        if (resonance?.effect?.damage_reduction) damageReduction += resonance.effect.damage_reduction
+
         let def = p.attrs.根骨 * 0.3
         if (p.equipment?.weapon) {
           const wpn = getItemById(p.equipment.weapon)
@@ -566,9 +632,28 @@ playerAction (action, martialId = null) {
           const arm = getItemById(p.equipment.armor)
           if (arm?.attrs?.defense) def += arm.attrs.defense
         }
-        const dmg = Math.max(1, Math.floor(atk - def))
-        p.current_hp = Math.max(0, p.current_hp - dmg)
-        logs.push(`${e.name}对你发动攻击，造成${dmg}点伤害！`)
+        const rawDmg = Math.max(1, Math.floor(atk - def))
+        const finalDmg = Math.floor(rawDmg * (1 - Math.min(0.8, damageReduction)))
+        p.current_hp = Math.max(0, p.current_hp - finalDmg)
+        logs.push(`${e.name}对你发动攻击，造成${finalDmg}点伤害！`)
+
+        // 阴阳交汇：HP<50%时每回合回复3%HP
+        if (resonance?.effect?.low_hp_heal && p.current_hp / p.max_hp < 0.5 && p.current_hp > 0) {
+          const heal = Math.floor(p.max_hp * resonance.effect.low_hp_heal)
+          p.current_hp = Math.min(p.max_hp, p.current_hp + heal)
+          logs.push(`【共鸣·阴阳交汇】你在逆境中回复了${heal}点生命！`)
+        }
+
+        // lethal_resist：死亡时复活
+        let hasLethalResist = false
+        for (const xf of activeXinfas) {
+          if (xf.combat_effects?.lethal_resist) hasLethalResist = true
+        }
+        if (hasLethalResist && p.current_hp <= 0) {
+          p.current_hp = Math.floor(p.max_hp * 0.3)
+          logs.push(`【心法·复活】${activeXinfas.find(x => x.combat_effects?.lethal_resist)?.name || '心法'}发动，你浴火重生！剩余30%生命。`)
+          state.combat.dotEffect = null
+        }
       }
       return logs
     },
@@ -587,7 +672,6 @@ playerAction (action, martialId = null) {
       p.max_qi = calcMaxQi(p.attrs)
       p.max_stamina = calcMaxStamina(p.attrs)
       p.max_carry = calcMaxCarry(p.attrs)
-      p.max_daily_actions = 24 + (p.attrs.耐力 || 0)
       p.current_hp = p.max_hp
       p.current_qi = p.max_qi
       this.addLog(`【升级！】你升至 ${p.level} 级！各项属性均有提升。`, 'event')
@@ -595,11 +679,10 @@ playerAction (action, martialId = null) {
 
     // ---- 武学 ----
     learnMartial (martialId) {
-      const martial = MARTIAL_ARTS.find(m => m.id === martialId) || XINFA.find(m => m.id === martialId)
-      if (!martial) return false
+      const martial = MARTIAL_ARTS.find(m => m.id === martialId)
+      if (!martial) return { ok: false, reason: 'not_found' }
       const p = state.player
       if (p.martial_arts.find(m => m.martial_id === martialId)) return { ok: false, reason: 'already_known' }
-      // 悟性门槛：武学等级越高，悟性要求越高
       const reqMap = { tian: 28, di: 22, xuan: 16, huang: 10, wu: 0 }
       const required = reqMap[martial.rank] || 10
       if ((p.attrs.悟性 || 0) < required) {
@@ -611,11 +694,27 @@ playerAction (action, martialId = null) {
 
     learnXinfa (xinfaId) {
       const xf = XINFA.find(x => x.id === xinfaId)
-      if (!xf) return false
+      if (!xf) return { ok: false, reason: 'not_found' }
       const p = state.player
-      if (p.xinfas.find(x => x.id === xinfaId)) return false
-      p.xinfas.push({ id: xinfaId })
-      // 应用心法加成
+      // 检查是否已学
+      const known = this.getKnownXinfas()
+      if (known.find(k => k.id === xinfaId)) return { ok: false, reason: 'already_known' }
+      // 悟性门槛
+      const req = xf.learn_req?.comprehension ?? 0
+      if ((p.attrs.悟性 || 0) < req) return { ok: false, reason: 'comprehension', required: req, current: p.attrs.悟性 }
+      // 记录到已学列表（用于判断是否已学）
+      if (!p.known_xinfas) p.known_xinfas = []
+      p.known_xinfas.push(xinfaId)
+      // 自动装备到第一个空槽
+      const slots = p.xinfa_slots
+      if (!slots.main) {
+        slots.main = xinfaId
+      } else if (!slots.sub1) {
+        slots.sub1 = xinfaId
+      } else if (!slots.sub2) {
+        slots.sub2 = xinfaId
+      }
+      // 应用心法固定加成
       if (xf.attrs.hp) {
         p.max_hp += xf.attrs.hp
         p.current_hp += xf.attrs.hp
@@ -624,13 +723,59 @@ playerAction (action, martialId = null) {
         p.max_qi += xf.attrs.qi
         p.current_qi += xf.attrs.qi
       }
+      if (xf.attrs.stamina_max) {
+        p.max_stamina += xf.attrs.stamina_max
+        p.current_stamina += xf.attrs.stamina_max
+      }
+      return { ok: true }
+    },
+
+    // ---- 获取已学会的心法列表 ----
+    getKnownXinfas () {
+      const knownIds = state.player?.known_xinfas || []
+      return knownIds.map(id => XINFA.find(x => x.id === id)).filter(Boolean)
+    },
+
+    // ---- 装备/切换心法槽（战斗中不可切换，非战斗消耗1刻调息） ----
+    switchXinfa (slot, xinfaId) {
+      // slot: 'main' | 'sub1' | 'sub2'
+      const p = state.player
+      if (!p) return false
+      if (state.phase === 'combat') {
+        this.addLog('战斗中不可切换心法！', 'system')
+        return false
+      }
+      const slots = p.xinfa_slots
+      // 检查目标心法是否已学会
+      const known = this.getKnownXinfas()
+      if (!known.find(k => k.id === xinfaId)) return false
+      // 检查是否已在此槽
+      if (slots[slot] === xinfaId) return false
+      slots[slot] = xinfaId
+      // 调息：消耗1时辰（8刻）
+      this.advanceTurn(8)
+      this.addLog(`你调息片刻，切换至【${XINFA.find(x => x.id === xinfaId)?.name}】。`, 'system')
+      return true
+    },
+
+    // ---- 卸下心法 ----
+    unequipXinfa (slot) {
+      const p = state.player
+      if (!p) return false
+      if (state.phase === 'combat') {
+        this.addLog('战斗中不可切换心法！', 'system')
+        return false
+      }
+      if (!p.xinfa_slots[slot]) return false
+      p.xinfa_slots[slot] = null
+      this.advanceTurn(8)
       return true
     },
 
     getKnownMartials () {
       return (state.player?.martial_arts || []).map(k => ({
         ...k,
-        data: MARTIAL_ARTS.find(m => m.id === k.martial_id) || XINFA.find(m => m.id === k.martial_id),
+        data: MARTIAL_ARTS.find(m => m.id === k.martial_id),
       })).filter(k => k.data)
     },
 
@@ -925,7 +1070,8 @@ playerAction (action, martialId = null) {
         eq: p.equipment,
         inv: p.inventory,
         ma: p.martial_arts,
-        xf: p.xinfas,
+        xs: p.xinfa_slots,  // 新槽位系统
+        kx: p.known_xinfas || [],  // 已学会的心法
         rid: p.regionId,
         lid: p.locationId,
         disc: p.discovered_locations || [],
@@ -1008,7 +1154,8 @@ playerAction (action, martialId = null) {
             locationId: data.lid,
             discovered_locations: data.disc || [],
             martial_arts: data.ma || [],
-            xinfas: data.xf || [],
+            xinfa_slots: data.xs || { main: null, sub1: null, sub2: null },
+            known_xinfas: data.kx || [],
             inventory: data.inv || [],
             equipment: data.eq || { weapon: null, armor: null, accessory: null },
             quests: data.qs || [],

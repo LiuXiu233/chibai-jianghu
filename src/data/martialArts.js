@@ -89,17 +89,230 @@ export const MARTIAL_ARTS = [
   { id: 'zhifa', name: '基础指法', type: 'unarmed', weapon: null, rank: 'wu', desc: '点穴的基本指法，需长期练习。', attrs: { qi: 5 }, masteryBonus: { qi: 0.6 }, unarmedMult: 1.2, effects: [{ type: 'damage', attr: 'qi', mult: 0.9, consume: { qi: 10 } }] },
 ]
 
-// 心法（被动）
+// 心法（被动）— 五大分类
+// category: 'foundation'根基 | 'sustain'续航 | 'combat'变种 | 'survival'辅助 | 'style'流派
+// element: 'yang'至阳 | 'yin'至阴 | 'neutral'中立 | 'light'轻灵 | 'heavy'厚重 (共鸣分组)
+// visual: 'glow-red' | 'gold-title' | 'purple' | 'blue' | 'normal'
 export const XINFA = [
-  { id: 'yijin', name: '易筋经', rank: 'di', desc: '少林至宝，洗髓伐骨，提升生命值与根骨。', attrs: { hp: 200, constitution: 15, hp_regen: 5 }, effects: [{ type: 'passive', desc: '每回合回复5%生命值' }] },
-  { id: 'xiayin', name: '吸星大法', rank: 'xuan', desc: '北冥神功分支，可吸取他人内力。', attrs: { qi: 100, qi_absorb: 0.1 }, effects: [{ type: 'passive', desc: '每回合吸收敌人10%内力' }] },
-  { id: 'jiuyang', name: '九阳神功', rank: 'di', desc: '九阴真经阳刚篇，内力生生不息。', attrs: { qi: 150, stamina_max: 50, qi_regen: 8 }, effects: [{ type: 'passive', desc: '每回合额外回复8点内力' }] },
-  { id: 'jiuyin', name: '九阴真经', rank: 'di', desc: '天下武学总纲，包罗万象。', attrs: { qi: 120, power: 8, agility: 8, luck: 5 }, effects: [{ type: 'passive', desc: '所有武学伤害+10%' }] },
-  { id: 'taiji', name: '太极拳经', rank: 'xuan', desc: '以柔克刚，后发先至。', attrs: { constitution: 12, dodge: 10, qi: 80 }, effects: [{ type: 'passive', desc: '受到伤害-15%，闪避+10%' }] },
-  { id: 'yijing', name: '意境心法', rank: 'huang', desc: '提升武学意境，增强伤害。', attrs: { qi: 50, power: 5 }, effects: [{ type: 'passive', desc: '武学伤害+5%' }] },
-  { id: 'zhenshan', name: '镇山心法', rank: 'huang', desc: '沉稳如山，步步为营。', attrs: { constitution: 8, hp: 80 }, effects: [{ type: 'passive', desc: '生命值+80' }] },
-  { id: 'jinshan', name: '金身心法', rank: 'xuan', desc: '金钟罩的进阶版，防御惊人。', attrs: { constitution: 15, defense: 20 }, effects: [{ type: 'passive', desc: '防御力+20' }] },
+  // ===== 天级（红）— 最强心法 =====
+  {
+    id: 'taiji_wuji', name: '太初无极功', rank: 'tian',
+    category: 'combat', element: 'yang', visual: 'glow-red',
+    desc: '太初之始，无极而生。攻击时30%概率触发「破绽」，下一次伤害翻倍；且死亡时复活一次。',
+    attrs: { power: 12, qi: 20, constitution: 10, luck: 8 },
+    passive: '攻击时30%触发破绽(伤害×2)；死亡时复活一次',
+    combat_effects: { crit_mult_bonus: 0.3, lethal_resist: true, weaken_def: 0.3 },
+    learn_req: { comprehension: 28 },
+  },
+  {
+    id: 'chunyang', name: '纯阳真气', rank: 'tian',
+    category: 'sustain', element: 'yang', visual: 'gold-title',
+    desc: '至阳内功，气海属性对内功的加成系数额外提升0.5。',
+    attrs: { qi: 250, qi_regen: 12, constitution: 8 },
+    passive: '内功伤害+50%，每刻回复12点内力',
+    combat_effects: { qi_scaling_bonus: 0.5, qi_regen: 12 },
+    learn_req: { comprehension: 28 },
+  },
+  {
+    id: 'jiuyin_true', name: '九阴真经', rank: 'tian',
+    category: 'style', element: 'yin', visual: 'glow-red',
+    desc: '天下武学总纲，包罗万象。装备剑类武器时，所有伤害+25%。',
+    attrs: { qi: 200, power: 10, agility: 10, luck: 10 },
+    passive: '所有武学伤害+25%，装备剑类武器时额外+25%（共+50%）',
+    combat_effects: { damage_bonus: 0.25, sword_damage_bonus: 0.5 },
+    learn_req: { comprehension: 28 },
+  },
+
+  // ===== 地级（金）— 高阶心法 =====
+  {
+    id: 'yijin', name: '易筋经', rank: 'di',
+    category: 'foundation', element: 'neutral', visual: 'gold-title',
+    desc: '少林至宝，洗髓伐骨。每刻回复5%最大生命值，根骨大幅提升。',
+    attrs: { hp: 300, constitution: 20, hp_regen: 5 },
+    passive: '每刻回复5%最大生命值，根骨+20',
+    combat_effects: { hp_regen: 5 },
+    learn_req: { comprehension: 22 },
+  },
+  {
+    id: 'jiuyang', name: '九阳神功', rank: 'di',
+    category: 'sustain', element: 'yang', visual: 'gold-title',
+    desc: '九阴真经阳刚篇，内力生生不息。每刻额外回复15点内力。',
+    attrs: { qi: 220, stamina_max: 80, qi_regen: 15, constitution: 5 },
+    passive: '每刻额外回复15点内力，体力上限+80',
+    combat_effects: { qi_regen: 15, stamina_max: 80 },
+    learn_req: { comprehension: 22 },
+  },
+  {
+    id: 'xiayin', name: '吸星大法', rank: 'di',
+    category: 'combat', element: 'yin', visual: 'gold-title',
+    desc: '北冥神功分支，战斗中对敌人造成伤害时可吸取10%转化为自身生命。',
+    attrs: { qi: 180, power: 8, luck: 12, lifesteal: 0.1 },
+    passive: '造成伤害时吸取10%转化为生命',
+    combat_effects: { lifesteal: 0.1 },
+    learn_req: { comprehension: 22 },
+  },
+  {
+    id: 'taiji', name: '太极拳经', rank: 'di',
+    category: 'combat', element: 'yin', visual: 'gold-title',
+    desc: '以柔克刚，后发先至。受到伤害减少20%，闪避率+15%。',
+    attrs: { constitution: 18, dodge: 15, qi: 120 },
+    passive: '受到伤害-20%，闪避+15%',
+    combat_effects: { damage_reduction: 0.2, dodge_bonus: 15 },
+    learn_req: { comprehension: 22 },
+  },
+  {
+    id: 'xiuxing', name: '修身养性诀', rank: 'di',
+    category: 'survival', element: 'light', visual: 'gold-title',
+    desc: '减少移动时体力消耗50%，且有30%概率移动后回复5点体力。',
+    attrs: { constitution: 12, stamina_max: 100, agility: 8 },
+    passive: '移动体力消耗-50%，移动后30%概率回复5点体力',
+    combat_effects: {},
+    learn_req: { comprehension: 22 },
+  },
+
+  // ===== 玄级（紫）— 中阶心法 =====
+  {
+    id: 'jinghong', name: '惊鸿步法', rank: 'xuan',
+    category: 'combat', element: 'light', visual: 'purple',
+    desc: '战斗开始时身法临时提升50%，持续3回合。',
+    attrs: { agility: 20, dodge: 10, luck: 5 },
+    passive: '战斗开始时身法临时+50%（3回合）',
+    combat_effects: { agility_start_bonus: 0.5, agility_dur: 3 },
+    learn_req: { comprehension: 16 },
+  },
+  {
+    id: 'jinshan', name: '金身心法', rank: 'xuan',
+    category: 'foundation', element: 'heavy', visual: 'purple',
+    desc: '防御属性转化为攻击力，每1点防御增加0.5点攻击。',
+    attrs: { constitution: 18, defense: 25, hp: 150 },
+    passive: '防御+25，每点防御转化0.5攻击',
+    combat_effects: { defense_to_attack: 0.5 },
+    learn_req: { comprehension: 16 },
+  },
+  {
+    id: 'jiuyin_partial', name: '九阴白骨爪内功', rank: 'xuan',
+    category: 'combat', element: 'yin', visual: 'purple',
+    desc: '暴击率额外提升20%，暴击伤害+30%。',
+    attrs: { power: 15, luck: 10, crit_bonus: 20 },
+    passive: '暴击率+20%，暴击伤害+30%',
+    combat_effects: { crit_bonus: 20, crit_dmg_bonus: 0.3 },
+    learn_req: { comprehension: 16 },
+  },
+  {
+    id: 'longwei', name: '龙威心法', rank: 'xuan',
+    category: 'style', element: 'yang', visual: 'purple',
+    desc: '装备枪类武器时，伤害额外+20%，每回合有15%概率反击最近攻击者。',
+    attrs: { power: 12, qi: 80, constitution: 8 },
+    passive: '装备枪类武器时伤害+20%，15%概率反击',
+    combat_effects: { spear_damage_bonus: 0.2, counter_chance: 0.15 },
+    learn_req: { comprehension: 16 },
+  },
+
+  // ===== 黄级（蓝）— 初阶心法 =====
+  {
+    id: 'changchun', name: '长春功', rank: 'huang',
+    category: 'survival', element: 'neutral', visual: 'blue',
+    desc: '每次移动后，有40%概率回复8点体力。',
+    attrs: { hp: 100, constitution: 10, stamina_max: 40 },
+    passive: '移动后40%概率回复8点体力',
+    combat_effects: {},
+    learn_req: { comprehension: 10 },
+  },
+  {
+    id: 'taiyi', name: '太乙心法', rank: 'huang',
+    category: 'sustain', element: 'neutral', visual: 'blue',
+    desc: '基础生命值+100，每刻回复1点内力、1点体力。',
+    attrs: { hp: 100, qi: 60, stamina_max: 20 },
+    passive: '每刻回复1点内力、1点体力',
+    combat_effects: { qi_regen: 1, stamina_regen: 1 },
+    learn_req: { comprehension: 10 },
+  },
+  {
+    id: 'wuji', name: '无极心法', rank: 'huang',
+    category: 'foundation', element: 'neutral', visual: 'blue',
+    desc: '所有基础属性+5，攻防平衡。',
+    attrs: { power: 5, qi: 5, agility: 5, constitution: 5 },
+    passive: '力量/气海/身法/根骨各+5',
+    combat_effects: {},
+    learn_req: { comprehension: 10 },
+  },
+  {
+    id: 'baihua', name: '百花羞掌意', rank: 'huang',
+    category: 'combat', element: 'light', visual: 'blue',
+    desc: '外功伤害+10%，身法+8。',
+    attrs: { power: 8, agility: 8 },
+    passive: '外功伤害+10%',
+    combat_effects: { external_damage_bonus: 0.1 },
+    learn_req: { comprehension: 10 },
+  },
+
+  // ===== 无级（白）— 入门心法 =====
+  {
+    id: 'tuna', name: '吐纳法', rank: 'wu',
+    category: 'foundation', element: 'neutral', visual: 'normal',
+    desc: '基础生命值+50，是修习其他心法的根基。',
+    attrs: { hp: 50, constitution: 3 },
+    passive: '生命值+50',
+    combat_effects: {},
+    learn_req: { comprehension: 0 },
+  },
+  {
+    id: 'qingxin', name: '清心诀', rank: 'wu',
+    category: 'sustain', element: 'neutral', visual: 'normal',
+    desc: '每刻回复少量内力和体力，适合恢复期。',
+    attrs: { qi: 20, stamina_max: 10 },
+    passive: '每刻回复1点内力',
+    combat_effects: { qi_regen: 1 },
+    learn_req: { comprehension: 0 },
+  },
+  {
+    id: 'xiaoyao', name: '逍遥游', rank: 'wu',
+    category: 'survival', element: 'light', visual: 'normal',
+    desc: '移动体力消耗减少20%，身法+3。',
+    attrs: { agility: 3, stamina_max: 15 },
+    passive: '移动体力消耗-20%',
+    combat_effects: {},
+    learn_req: { comprehension: 0 },
+  },
 ]
+
+// 共鸣系统：相同 element 的心法同时装备触发额外效果
+export const RESONANCE_PAIRS = [
+  { elements: ['yang', 'yang'], name: '灼热', desc: '攻击有20%概率使敌人每回合损失10生命，持续2回合', effect: { dot_chance: 0.2, dot_dmg: 10, dot_dur: 2 } },
+  { elements: ['yin', 'yin'], name: '寒彻', desc: '闪避成功后有25%概率对敌人造成反击伤害', effect: { counter_on_dodge: 0.25, counter_dmg: 15 } },
+  { elements: ['yang', 'yin'], name: '阴阳交汇', desc: '每回合根据当前生命比例回复：HP<50%时额外回复3%HP，HP>80%时伤害+10%', effect: { low_hp_heal: 0.03, high_hp_dmg: 0.1 } },
+  { elements: ['light', 'light'], name: '轻灵', desc: '闪避率+8%，行动后有20%概率立即恢复2刻时间（加速时间流逝）', effect: { dodge_bonus: 8, time_skip_chance: 0.2 } },
+  { elements: ['heavy', 'heavy'], name: '厚重', desc: '受到伤害-10%，防御属性转化为生命值的效率+50%', effect: { damage_reduction: 0.1, defense_to_hp: 0.5 } },
+  { elements: ['neutral', 'neutral'], name: '中正', desc: '所有回复效果+20%', effect: { heal_bonus: 0.2 } },
+]
+
+export function getResonanceEffect (xinfaList) {
+  const elements = xinfaList.map(x => x.element).filter(Boolean)
+  for (const pair of RESONANCE_PAIRS) {
+    const [a, b] = pair.elements
+    if (elements.includes(a) && elements.includes(b)) return pair
+  }
+  return null
+}
+
+export function getXinfaById (id) {
+  return XINFA.find(x => x.id === id) || null
+}
+
+export function getXinfaByRank (rank) {
+  return XINFA.filter(x => x.rank === rank)
+}
+
+export function getXinfaByCategory (cat) {
+  return XINFA.filter(x => x.category === cat)
+}
+
+export function getRandomXinfa (rank = null, seed = Date.now()) {
+  let pool = [...XINFA]
+  if (rank) pool = pool.filter(x => x.rank === rank)
+  const idx = Math.abs(seed) % pool.length
+  return pool[idx]
+}
 
 export function getMartialByRank (rank) {
   return MARTIAL_ARTS.filter(m => m.rank === rank)

@@ -111,10 +111,7 @@ function move (direction) {
 }
 
 function explore () {
-  if ((state.player.daily_actions_used || 0) >= state.player.max_daily_actions) {
-    game.addLog('今日行动次数已用尽。', 'system')
-    return
-  }
+  game.advanceTurn(1)
   const diff = region.value?.difficulty || 1
   const pool = ENEMY_TEMPLATES.filter(e => {
     const rv = { wu: 1, huang: 2, xuan: 3, di: 4, tian: 5 }[e.rank] || 1

@@ -110,8 +110,8 @@
           <div class="stat-label">负重</div>
         </div>
         <div class="stat-item">
-          <div class="stat-val">{{ state.player?.daily_actions_used || 0 }}/{{ state.player?.max_daily_actions || 24 }}</div>
-          <div class="stat-label">今日行动</div>
+          <div class="stat-val text-red">{{ game.computed.currentShichen.value }}</div>
+          <div class="stat-label">时辰</div>
         </div>
       </div>
     </div>

@@ -27,12 +27,10 @@
     <!-- 信息行 -->
     <div class="info-row">
       <span class="info-item">第 <span class="text-red">{{ game.computed.currentDay.value }}</span> 天</span>
-      <span class="info-item">{{ String(game.computed.currentHour.value).padStart(2,'0') }}:00</span>
+      <span class="info-item text-red">{{ game.computed.currentShichen.value }}</span>
+      <span class="info-item">第{{ game.computed.currentKe.value }}刻</span>
       <span class="info-item">💰 <span class="text-gold">{{ state.player?.gold }}</span></span>
       <span class="info-item">Lv.{{ state.player?.level }}</span>
-      <span class="info-item" :class="actionPct > 90 ? 'text-red' : 'text-gray'">
-        行动 {{ state.player?.daily_actions_used || 0 }}/{{ state.player?.max_daily_actions || 24 }}
-      </span>
     </div>
   </div>
 </template>
@@ -47,7 +45,6 @@ const state = game.state
 const hpPct = computed(() => state.player ? Math.max(0, state.player.current_hp / game.computed.maxHP.value * 100) : 0)
 const qiPct = computed(() => state.player ? Math.max(0, state.player.current_qi / game.computed.maxQi.value * 100) : 0)
 const staminaPct = computed(() => state.player ? Math.max(0, state.player.current_stamina / game.computed.maxStamina.value * 100) : 0)
-const actionPct = computed(() => state.player?.max_daily_actions ? (state.player.daily_actions_used / state.player.max_daily_actions * 100) : 0)
 </script>
 
 <style scoped>
