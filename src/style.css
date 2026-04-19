@@ -2,27 +2,55 @@
    赤白江湖 — 全局样式
    ===================== */
 :root {
-  --red: #C22828;
-  --red-dark: #8B1A1A;
-  --red-light: #E53935;
-  --white: #FFFFFF;
-  --gray: #555555;
-  --gray-dark: #CCCCCC;
-  --gray-mid: #888888;
-  --gold: #B8860B;
-  --purple: #6B238E;
-  --blue: #1E3A8A;
-  --bg: #FFFFFF;
-  --bg-card: #F5F5F5;
-  --bg-card-hover: #EBEBEB;
-  --border: #DDDDDD;
+  /* 背景与主色 */
+  --bg:           #FFFFFF;
+  --bg-card:      #F8F8F8;
+  --bg-card-hover:#EFEFEF;
+  --border:       #E0E0E0;
 
-  /* 等级色（严格按 PRD: 天红/地金/玄紫/黄蓝/无灰）*/
-  --tian-color: #FF0000;
-  --di-color: #B8860B;
-  --xuan-color: #6B238E;
-  --huang-color: #1E3A8A;
-  --wu-color: #888888;
+  /* 品牌红 */
+  --red:          #C22828;
+  --red-dark:     #8B1A1A;
+  --red-light:    #E53935;
+
+  /* 文字 */
+  --text:         #1A1A1A;
+  --text-dim:     #777777;
+
+  /* 五阶色（白底清晰可辨） */
+  --tian-color:   #E53935;  /* 亮红，天阶 */
+  --di-color:     #C5920A;  /* 暖金，地阶 */
+  --xuan-color:   #6B238E;  /* 深紫，玄阶 */
+  --huang-color:  #1E3A8A;  /* 深海蓝，黄阶 */
+  --wu-color:     #888888;  /* 中灰，无阶 */
+
+  /* 语义色 */
+  --gold:         #C5920A;  /* 事件/进度条（与 di-color 统一） */
+  --gold-light:   rgba(197,146,10,0.12);
+  --purple:       #6B238E;
+  --blue:         #1E3A8A;
+  --gray:         #555555;
+  --gray-mid:     #888888;
+  --gray-dark:    #CCCCCC;
+  --success:      #2E7D32;
+  --danger:       #C22828;
+  --warning:      #C5920A;
+
+  /* 进度条渐变 */
+  --bar-hp:       linear-gradient(90deg, #8B1A1A, #C22828);
+  --bar-qi:       linear-gradient(90deg, #555555, #888888);
+  --bar-stamina:  linear-gradient(90deg, #1E3A8A, #3B82F6);
+  --bar-exp:      linear-gradient(90deg, #C5920A, #F5DEB3);
+  --bar-mastery:  linear-gradient(90deg, #6B238E, #9B59B6);
+
+  /* 按钮/输入框 */
+  --btn-bg:       #C22828;
+  --btn-text:     #FFFFFF;
+  --input-bg:     #F8F8F8;
+
+  /* 兼容别名 */
+  --white:        #FFFFFF;
+  --text-white:   #1A1A1A;
 }
 
 * {
@@ -37,7 +65,7 @@ html, body {
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--bg);
-  color: #1A1A1A;
+  color: var(--text);
   font-family: 'Noto Serif SC', serif, 'Songti SC', 'SimSun', serif;
   font-size: 16px;
   line-height: 1.6;
@@ -59,17 +87,17 @@ html, body {
 ::-webkit-scrollbar-thumb { background: var(--red); border-radius: 2px; }
 
 /* ---- 文字色 ---- */
-.text-red { color: var(--red); }
-.text-gold { color: var(--gold); }
+.text-red    { color: var(--red); }
+.text-gold   { color: var(--gold); }
 .text-purple { color: var(--purple); }
-.text-blue { color: var(--blue); }
-.text-gray { color: var(--gray); }
-.text-white { color: #1A1A1A; }
-.text-tian { color: var(--tian-color); font-weight: 700; }
-.text-di { color: var(--di-color); font-weight: 700; }
-.text-xuan { color: var(--xuan-color); font-weight: 700; }
-.text-huang { color: var(--huang-color); font-weight: 700; }
-.text-wu { color: var(--wu-color); }
+.text-blue   { color: var(--blue); }
+.text-gray   { color: var(--gray); }
+.text-white  { color: var(--text-white); }
+.text-tian   { color: var(--tian-color); font-weight: 700; }
+.text-di     { color: var(--di-color); font-weight: 700; }
+.text-xuan   { color: var(--xuan-color); font-weight: 700; }
+.text-huang  { color: var(--huang-color); font-weight: 700; }
+.text-wu     { color: var(--wu-color); }
 
 /* ---- 等级标签 ---- */
 .rank-tag {
@@ -80,11 +108,11 @@ html, body {
   font-weight: 700;
   letter-spacing: 0.05em;
 }
-.rank-tian { background: rgba(255,34,34,0.2); color: var(--tian-color); border: 1px solid var(--tian-color); }
-.rank-di   { background: rgba(255,215,0,0.15); color: var(--di-color); border: 1px solid var(--di-color); }
-.rank-xuan { background: rgba(160,32,240,0.15); color: var(--xuan-color); border: 1px solid var(--xuan-color); }
-.rank-huang{ background: rgba(59,130,246,0.15); color: var(--huang-color); border: 1px solid var(--huang-color); }
-.rank-wu   { background: rgba(136,136,136,0.15); color: var(--wu-color); border: 1px solid var(--wu-color); }
+.rank-tian  { background: rgba(229,57,53,0.12);  color: var(--tian-color);  border: 1px solid var(--tian-color); }
+.rank-di    { background: rgba(197,146,10,0.10); color: var(--di-color);   border: 1px solid var(--di-color); }
+.rank-xuan  { background: rgba(107,35,142,0.10); color: var(--xuan-color); border: 1px solid var(--xuan-color); }
+.rank-huang { background: rgba(30,58,138,0.10);  color: var(--huang-color);border: 1px solid var(--huang-color); }
+.rank-wu    { background: rgba(136,136,136,0.10);color: var(--wu-color);  border: 1px solid var(--wu-color); }
 
 /* ---- 按钮 ---- */
 .btn {
@@ -95,7 +123,7 @@ html, body {
   padding: 8px 20px;
   border: 1px solid var(--red);
   background: var(--red);
-  color: #1A1A1A;
+  color: var(--btn-text);
   font-family: inherit;
   font-size: 15px;
   cursor: pointer;
@@ -108,15 +136,15 @@ html, body {
 .btn:hover, .btn:focus {
   background: var(--red-light);
   border-color: var(--red-light);
-  color: #1A1A1A;
+  color: var(--btn-text);
   outline: none;
 }
 .btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-red { background: var(--red); border-color: var(--red); color: #1A1A1A; }
+.btn-red    { background: var(--red); border-color: var(--red); color: var(--btn-text); }
 .btn-red:hover { background: var(--red-light); border-color: var(--red-light); }
-.btn-ghost { background: transparent; border-color: var(--border); color: #1A1A1A; }
-.btn-ghost:hover { background: var(--gray-dark); border-color: var(--gray-dark); color: #1A1A1A; }
+.btn-ghost  { background: transparent; border-color: var(--border); color: var(--text); }
+.btn-ghost:hover { background: var(--gray-dark); border-color: var(--gray-dark); color: var(--text); }
 .btn-sm { padding: 5px 12px; font-size: 13px; }
 .btn-lg { padding: 12px 32px; font-size: 17px; }
 
@@ -130,9 +158,9 @@ html, body {
 
 /* ---- 输入框 ---- */
 .input {
-  background: #111;
+  background: var(--input-bg);
   border: 1px solid var(--border);
-  color: #1A1A1A;
+  color: var(--text);
   font-family: inherit;
   font-size: 14px;
   padding: 8px 12px;
@@ -142,7 +170,7 @@ html, body {
   transition: border-color 0.2s;
 }
 .input:focus { border-color: var(--red); }
-.input::placeholder { color: var(--gray); }
+.input::placeholder { color: var(--gray-mid); }
 
 /* ---- 分割线 ---- */
 .divider {
@@ -191,9 +219,23 @@ html, body {
   border-radius: 3px;
   transition: width 0.5s ease;
 }
-.bar-hp   { background: linear-gradient(90deg, #8B1A1A, #C22828); }
-.bar-qi   { background: linear-gradient(90deg, #666, #999); }
-.bar-stamina { background: linear-gradient(90deg, #1E3A8A, #3B82F6); }
+.bar-hp       { background: var(--bar-hp); }
+.bar-qi       { background: var(--bar-qi); }
+.bar-stamina  { background: var(--bar-stamina); }
+.bar-exp      { background: var(--bar-exp); }
+.bar-mastery  { background: var(--bar-mastery); }
+
+/* ---- 进度条轨道（CombatView 等） ---- */
+.bar-track {
+  width: 80px;
+  height: 6px;
+  background: #222;
+  border-radius: 3px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+.bar-label { font-size: 11px; }
 
 /* ---- 列表项 hover ---- */
 .list-item {
@@ -221,7 +263,7 @@ html, body {
 }
 .log-line.combat { padding-left: 8px; border-left: 2px solid var(--red); margin: 2px 0; }
 .log-line.event  { padding-left: 8px; border-left: 2px solid var(--gold); margin: 2px 0; }
-.log-line.system { color: var(--gray); font-style: italic; font-size: 13px; }
+.log-line.system { color: var(--text-dim); font-style: italic; font-size: 13px; }
 
 /* ---- 手机适配 ---- */
 @media (max-width: 480px) {

@@ -93,6 +93,13 @@ function forceSave () {
 // 过程化武学/心法数据缓存（用于战斗时查找）
 const PROC_MARTIAL_CACHE = {}
 const PROC_XINFA_CACHE = {}
+// 过程化物品缓存（用于购买后能在背包中查找）
+const PROC_ITEM_CACHE = {}
+
+// 解析物品：优先从静态库查找，未找到则查 proc 缓存
+function resolveItem (itemId) {
+  return getItemById(itemId) || PROC_ITEM_CACHE[itemId] || null
+}
 
 const ADMIN_KEY = 'chibai_admin_v1'
 
@@ -144,7 +151,7 @@ currentDay: computed(() => Math.floor(state.clock / 96) + 1),
       carryWeight: computed(() => {
         if (!state.player) return 0
         return (state.player.inventory || []).reduce((sum, inv) => {
-          const item = getItemById(inv.item_id)
+          const item = resolveItem(inv.item_id)
           if (!item) return sum
           // 材料和消耗品负重为1，装备为5，武器为8
           const wt = item.type === 'material' ? 1 : item.type === 'consumable' ? 1 : item.type === 'weapon' ? 8 : item.type === 'armor' ? 5 : 2
@@ -153,6 +160,7 @@ currentDay: computed(() => Math.floor(state.clock / 96) + 1),
       }),
       alive: computed(() => (state.player ? state.player.current_hp > 0 : true)),
       isOver: computed(() => state.clock >= MAX_TURNS || (state.player && state.player.current_hp <= 0)),
+      lastProcLocationDiscovery: computed(() => state._lastProcLocation),
     },
 
     // ---- 初始化 ----
@@ -237,6 +245,7 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       state.player.max_carry = calcMaxCarry(attrs)
       state.player.martialCooldowns = {}
       state.player.discovered_locations = []
+      state.player.procDiscoveredLocations = []
 
       // 初始武学（根据属性给予）
       if (attrs.力量 >= 14) this.learnMartial('luohan')
@@ -530,6 +539,30 @@ martial_arts: [], // [{martial_id, mastery: 0-100}]
       } else if (event.type === 'enemy') {
         this.startCombat(event.data)
         return event
+      } else if (event.type === 'location') {
+        const loc = event.data
+        if (!state.player.procDiscoveredLocations) {
+          state.player.procDiscoveredLocations = []
+        }
+        const alreadyKnown = state.player.procDiscoveredLocations.find(p => p.name === loc.name)
+        if (!alreadyKnown) {
+          state.player.procDiscoveredLocations.push({
+            id: `proc_loc_${state.clock}`,
+            name: loc.name,
+            regionId: state.player.regionId,
+            desc: loc.desc,
+            type: loc.type,
+          })
+          state._lastProcLocation = {
+            name: loc.name,
+            desc: loc.desc,
+            regionId: state.player.regionId,
+          }
+          this.addLog(`你在探索中听到有人低声议论：「附近有一处${loc.name}，据说……」`, 'event')
+        } else {
+          this.addLog(`你再次经过${loc.name}附近。`, 'event')
+        }
+        return event
       }
       return event
     },
@@ -580,7 +613,7 @@ playerAction (action, martialId = null) {
       }
       // 武器吸血
       if (p.equipment?.weapon) {
-        const wpn = getItemById(p.equipment.weapon)
+        const wpn = resolveItem(p.equipment.weapon)
         if (wpn?.special === 'lifesteal') totalLifesteal += (wpn.special_val || 0.1)
       }
 
@@ -607,7 +640,7 @@ playerAction (action, martialId = null) {
       if (action === 'basic_attack') {
         let atk = p.attrs.力量 || 5
         if (p.equipment?.weapon) {
-          const wpn = getItemById(p.equipment.weapon)
+          const wpn = resolveItem(p.equipment.weapon)
           atk += wpn?.attrs?.power || 0
         }
         const baseDmg = atk + Math.floor(Math.random() * 5)
@@ -637,11 +670,11 @@ playerAction (action, martialId = null) {
         }
       } else if (action === 'useItem') {
         const drug = p.inventory.find(i => {
-          const item = getItemById(i.item_id)
+          const item = resolveItem(i.item_id)
           return item && item.type === 'consumable'
         })
         if (drug) {
-          const item = getItemById(drug.item_id)
+          const item = resolveItem(drug.item_id)
           // 共鸣·中正：所有回复效果+20%
           const healBonus = resonance?.effect?.heal_bonus || 0
           if (item.effect.hp) p.current_hp = Math.min(p.max_hp, p.current_hp + Math.floor(item.effect.hp * (1 + healBonus)))
@@ -782,7 +815,7 @@ playerAction (action, martialId = null) {
       }
       if (resonance?.effect?.dodge_bonus) totalDodge += resonance.effect.dodge_bonus / 100
       if (p.equipment?.weapon) {
-        const wpn = getItemById(p.equipment.weapon)
+        const wpn = resolveItem(p.equipment.weapon)
         if (wpn?.special === 'dodge') totalDodge += (wpn.special_val || 0) / 100
       }
 
@@ -804,11 +837,11 @@ playerAction (action, martialId = null) {
 
         let def = p.attrs.根骨 * 0.3
         if (p.equipment?.weapon) {
-          const wpn = getItemById(p.equipment.weapon)
+          const wpn = resolveItem(p.equipment.weapon)
           if (wpn?.special === 'defense') def += wpn.special_val || 0
         }
         if (p.equipment?.armor) {
-          const arm = getItemById(p.equipment.armor)
+          const arm = resolveItem(p.equipment.armor)
           if (arm?.attrs?.defense) def += arm.attrs.defense
         }
         const rawDmg = Math.max(1, Math.floor(atk - def))
@@ -988,7 +1021,7 @@ playerAction (action, martialId = null) {
 
     equipItem (itemId) {
       const p = state.player
-      const item = getItemById(itemId)
+      const item = resolveItem(itemId)
       if (!item) return
       if (item.type === 'weapon') {
         p.equipment.weapon = itemId
@@ -1187,7 +1220,7 @@ playerAction (action, martialId = null) {
 
     // ---- 使用物品（背包） ----
     useItem (itemId) {
-      const item = getItemById(itemId)
+      const item = resolveItem(itemId)
       if (!item) return { ok: false, reason: 'not_found' }
       const inv = state.player.inventory.find(i => i.item_id === itemId)
       if (!inv || inv.quantity <= 0) return { ok: false, reason: 'no_quantity' }
@@ -1313,7 +1346,7 @@ playerAction (action, martialId = null) {
     },
 
     buyItem (itemId) {
-      const item = getItemById(itemId)
+      const item = resolveItem(itemId)
       if (!item) return false
       if (state.player.gold < item.cost) {
         this.addLog('银子不够！', 'system')
@@ -1325,11 +1358,25 @@ playerAction (action, martialId = null) {
       return true
     },
 
+    // ---- 购买过程化物品（不在静态 ITEMS 中）----
+    buyProcItem (item) {
+      if (state.player.gold < item.cost) {
+        this.addLog('银子不够！', 'system')
+        return false
+      }
+      // 注册到 proc 缓存，确保 useItem/getItemById 能找到
+      PROC_ITEM_CACHE[item.id] = item
+      state.player.gold -= item.cost
+      this.addItem(item.id, 1)
+      this.addLog(`你购买了${item.name}。`, 'event')
+      return true
+    },
+
     sellItem (itemId, quantity = 1) {
       const p = state.player
       const entry = p.inventory.find(i => i.item_id === itemId)
       if (!entry || entry.quantity < quantity) return false
-      const item = getItemById(itemId)
+      const item = resolveItem(itemId)
       if (!item) return false
       // 售价 = 原价 × 0.4（40%回收价）
       const sellPrice = Math.floor((item.cost || 10) * 0.4)
@@ -1342,7 +1389,7 @@ playerAction (action, martialId = null) {
 
     // ---- 装备强化 ----
     getUpgradeCost (itemId) {
-      const item = getItemById(itemId)
+      const item = resolveItem(itemId)
       if (!item || !item.cost) return 0
       // 强化费用为原价的三分之一（向下取整），最低50
       return Math.max(50, Math.floor(item.cost / 3))
@@ -1352,7 +1399,7 @@ playerAction (action, martialId = null) {
       const p = state.player
       const itemId = p.equipment?.[slot]
       if (!itemId) return false
-      const item = getItemById(itemId)
+      const item = resolveItem(itemId)
       if (!item) return false
       const cost = this.getUpgradeCost(itemId)
       if (p.gold < cost) {
@@ -1491,6 +1538,7 @@ playerAction (action, martialId = null) {
         rid: p.regionId,
         lid: p.locationId,
         disc: p.discovered_locations || [],
+        pd: p.procDiscoveredLocations || [],
         c: state.clock,
         qs: state.quests.filter(q => !q.claimed).map(q => ({
           id: q.id,
@@ -1518,6 +1566,7 @@ playerAction (action, martialId = null) {
         '"attrs"': 'a', '"equipment"': 'eq', '"inventory"': 'inv',
         '"martial_arts"': 'ma', '"xinfas"': 'xf', '"regionId"': 'rid',
         '"locationId"': 'lid', '"discovered_locations"': 'disc',
+        '"procDiscoveredLocations"': 'pd',
         '"clock"': 'c', '"quests"': 'qs', '"item_id"': 'i',
         '"martial_id"': 'm', '"quantity"': 'q', '"mastery"': 'r',
         '"completed"': 'd', '"current"': 'c', '"target"': 't',
@@ -1581,6 +1630,7 @@ playerAction (action, martialId = null) {
             regionId: data.rid,
             locationId: data.lid,
             discovered_locations: data.disc || [],
+            procDiscoveredLocations: data.pd || [],
             martial_arts: data.ma || [],
             xinfa_slots: data.xs || { main: null, sub1: null, sub2: null },
             known_xinfas: data.kx || [],

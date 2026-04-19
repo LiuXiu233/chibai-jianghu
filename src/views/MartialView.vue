@@ -13,7 +13,7 @@
         <span class="m-name">{{ m.data.name }}</span>
         <span class="m-type text-gray">{{ typeLabel[m.data.type] }}</span>
         <div class="mastery-bar">
-          <div class="bar-fill" style="background:var(--gold);height:100%" :style="{ width: m.mastery + '%' }"></div>
+          <div class="bar-fill bar-mastery" :style="{ width: m.mastery + '%' }"></div>
         </div>
         <span class="m-mastery text-gold">{{ m.mastery }}</span>
         <span v-if="getCooldown(m.martial_id) > 0" class="cooldown-tag">冷却{{ getCooldown(m.martial_id) }}T</span>

@@ -20,7 +20,7 @@
         </span>
       </div>
       <div class="hp-row">
-        <span class="text-gray" style="font-size:11px">生命</span>
+        <span class="bar-label text-gray">生命</span>
         <div class="bar-track">
           <div class="bar-fill bar-hp" :style="{ width: enemyHpPct + '%' }"></div>
         </div>
@@ -41,22 +41,22 @@
     <!-- 玩家状态 -->
     <div class="player-section">
       <div class="pstat-row">
-        <span class="text-red" style="font-size:11px">你</span>
-        <div class="bar-track" style="width:80px">
+        <span class="bar-label text-red">你</span>
+        <div class="bar-track">
           <div class="bar-fill bar-hp" :style="{ width: playerHpPct + '%' }"></div>
         </div>
         <span class="bar-text">{{ Math.floor(state.player.current_hp) }}</span>
       </div>
       <div class="pstat-row">
-        <span class="text-gray" style="font-size:11px">内力</span>
-        <div class="bar-track" style="width:80px">
+        <span class="bar-label text-gray">内力</span>
+        <div class="bar-track">
           <div class="bar-fill bar-qi" :style="{ width: playerQiPct + '%' }"></div>
         </div>
         <span class="bar-text">{{ Math.floor(state.player.current_qi) }}</span>
       </div>
       <div class="pstat-row">
-        <span class="text-gray" style="font-size:11px">体力</span>
-        <div class="bar-track" style="width:80px">
+        <span class="bar-label text-gray">体力</span>
+        <div class="bar-track">
           <div class="bar-fill bar-stamina" :style="{ width: playerStaminaPct + '%' }"></div>
         </div>
         <span class="bar-text">{{ Math.floor(state.player.current_stamina) }}</span>

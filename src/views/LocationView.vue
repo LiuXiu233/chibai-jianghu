@@ -117,7 +117,7 @@ watch(() => state.eventLog.length, async () => {
 .location-panel {
   flex-shrink: 0;
   padding: 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;

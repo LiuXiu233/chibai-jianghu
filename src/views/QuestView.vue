@@ -21,7 +21,7 @@
           <div v-for="(goal, gi) in q.goals" :key="gi" class="goal-row">
             <span class="goal-target">{{ goal.target }}</span>
             <div class="goal-bar-wrap">
-              <div class="bar-fill" :style="{ width: (goal.current / goal.count * 100) + '%', background: goal.completed ? 'var(--gold)' : 'var(--red)' }"></div>
+              <div class="bar-fill" :class="goal.completed ? 'bar-exp' : 'bar-hp'" :style="{ width: (goal.current / goal.count * 100) + '%' }"></div>
             </div>
             <span class="goal-count" :class="goal.completed ? 'text-gold' : ''">{{ goal.current }}/{{ goal.count }}</span>
           </div>

@@ -39,7 +39,7 @@
       <div class="exp-row">
         <span class="exp-val text-gold">{{ state.player?.exp }}</span>
         <div class="exp-bar-track">
-          <div class="bar-fill" style="background:var(--xuan-color)" :style="{ width: expPct + '%' }"></div>
+          <div class="bar-fill bar-exp" :style="{ width: expPct + '%' }"></div>
         </div>
         <span class="exp-next text-gray">下一级还需 {{ state.player?.exp_needed - state.player?.exp }}</span>
       </div>

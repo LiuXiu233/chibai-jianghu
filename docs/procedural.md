@@ -153,6 +153,21 @@ export function generateProcMartial (rank, seed) {
 
 `useGame.js` 额外维护 `PROC_MARTIAL_CACHE` / `PROC_XINFA_CACHE` 作为备份，在存档恢复后填充，确保战斗时能查到完整武学数据。
 
+### 过程化商店物品
+
+铁匠铺和药铺同时出售静态物品和过程化物品：
+
+- **铁匠铺**：`generateProcShopWeapon`（武器）/ `generateProcShopArmor`（防具）/ `generateProcShopAccessory`（饰品）
+- **药铺**：`generateProcShopDrug`（消耗品）
+
+生成格式：`[品质前缀] + [物品名]`，如「弑神 · 寒月刀」「寂灭 · 大还丹」。
+
+商店物品数量根据区域难度（1~5）动态调整：高难度区域出售更多高阶 proc 物品（1~3 件）。
+
+`generator.js` 的 `getBlacksmithShopItems(diff, seed)` 和 `getPharmacyShopItems(diff, seed)` 混合静态 + proc 物品，返回完整物品对象（含 `id`、`name`、`cost`、`attrs`/`effect`）。
+
+proc 物品购买后通过 `PROC_ITEM_CACHE` 缓存，确保 `useItem()` / `sellItem()` / `equipItem()` 能正常解析。
+
 ---
 
 ## questGen.js — 过程化任务生成

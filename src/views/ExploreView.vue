@@ -7,8 +7,18 @@
       <div class="loc-type text-gray">{{ typeLabel[location?.type] || location?.type }}</div>
     </div>
 
-    <!-- 文字日志 -->
+<!-- 文字日志 -->
     <div class="log-container" ref="logEl">
+      <!-- 过程化地点发现提示 -->
+      <div v-if="game.lastProcLocationDiscovery" class="proc-location-banner">
+        <div class="ploc-icon">📍</div>
+        <div class="ploc-content">
+          <div class="ploc-name text-gold">{{ game.lastProcLocationDiscovery.name }}</div>
+          <div class="ploc-desc text-gray">{{ game.lastProcLocationDiscovery.desc }}</div>
+          <div class="ploc-hint text-gray">已记录。前往酒馆查看所有发现。</div>
+        </div>
+      </div>
+      <!-- 事件日志 -->
       <div
         v-for="entry in recentLogs"
         :key="entry.id"
@@ -278,4 +288,21 @@ watch(() => state.eventLog.length, async () => {
   transition: all 0.15s;
 }
 .travel-btn:hover { background: rgba(194,40,40,0.2); }
+
+/* 过程化地点发现提示 */
+.proc-location-banner {
+  background: rgba(197,146,10,0.08);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ploc-icon { font-size: 16px; flex-shrink: 0; }
+.ploc-content { display: flex; flex-direction: column; gap: 2px; }
+.ploc-name { font-size: 14px; font-weight: 700; }
+.ploc-desc { font-size: 12px; font-style: italic; }
+.ploc-hint { font-size: 11px; }
 </style>

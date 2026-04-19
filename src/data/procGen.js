@@ -776,6 +776,145 @@ export function generateProcLocation (regionId = 'zhongyuan', seed = Date.now())
 // 随机掉落生成（基于 procMartial 的装备）
 // ============================================================
 
+// 武器类型词库（procGen 内置，不依赖 items.js 避免循环依赖）
+const WEAPON_NAMES = {
+  dao: ['狂刀', '烈刀', '血刀', '寒月刀', '玄冰刀'],
+  jian: ['霜剑', '寒剑', '碧剑', '银剑', '青锋剑'],
+  qiang: ['银枪', '寒铁枪', '霸王枪', '龙胆枪'],
+  gun:  ['伏魔棍', '玄铁棍', '盘龙棍'],
+  shan: ['折扇', '玉骨折扇', '月华扇'],
+  qin:  ['焦尾琴', '古琴', '绿绮琴'],
+  bi:   ['判官笔', '铁骨笔', '朱砂笔'],
+}
+const ACCESSORY_NAMES = ['护腕', '玉佩', '戒指', '项链', '腰带', '护符']
+const DRUG_NAMES = {
+  hp:    { tian: '九转灵童', di: '大还丹', xuan: '续命丹', huang: '上等金创药', wu: '金创药' },
+  qi:    { tian: '九转神元丹', di: '太虚丹', xuan: '上品回气散', huang: '回气散', wu: '下品回气散' },
+  stamina:{ tian: '千年灵芝', di: '百年灵芝', xuan: '精制体力丸', huang: '体力丸', wu: '体力散' },
+  cure:  { tian: '万毒解', di: '解毒丹', xuan: '解毒丸', huang: '解毒散', wu: '草药' },
+}
+const DRUG_COST_BASE = { tian: 600, di: 350, xuan: 180, huang: 80, wu: 30 }
+
+// 生成过程化武器（完整物品对象，用于商店）
+export function generateProcShopWeapon (rank = 'huang', seed = Date.now()) {
+  const r = (offset = 0) => seededRand(seed + offset)
+  const types = ['dao', 'jian', 'qiang', 'gun', 'shan', 'qin', 'bi']
+  const wtype = pick(types, seed + 20)
+  const prefixes = QUALITY_PREFIXES[rank] || QUALITY_PREFIXES.huang
+  const prefix = pick(prefixes, seed + 33)
+  const baseName = pick(WEAPON_NAMES[wtype] || ['长刀'], seed + 44)
+  const powerBase = { tian: 45, di: 30, xuan: 18, huang: 10, wu: 5 }[rank] || 10
+  const qiBase = { tian: 35, di: 20, xuan: 12, huang: 5, wu: 0 }[rank] || 5
+  const attrCount = rank === 'tian' ? 3 : rank === 'di' ? 2 : 1
+  const attrs = {}
+  if (attrCount >= 1) attrs.power = Math.floor(powerBase * (0.8 + r(50) * 0.4))
+  if (attrCount >= 2 && r(60) > 0.5) attrs.qi = Math.floor(qiBase * (0.6 + r(65) * 0.8))
+  if (attrCount >= 3) attrs.luck = Math.floor(5 + r(70) * 15)
+  const costBase = { tian: 800, di: 400, xuan: 200, huang: 80, wu: 20 }[rank] || 80
+  const cost = Math.floor(costBase * (0.8 + r(80) * 0.4))
+  const itemId = `proc_wpn_${rank}_${Math.abs(seed % 999983)}`
+  return {
+    id: itemId,
+    name: `${prefix} · ${baseName}`,
+    type: 'weapon',
+    rank,
+    weapon_type: wtype,
+    attrs,
+    cost,
+    desc: `过程锻造，蕴含${prefix}意境的神兵利器。`,
+    proc: true,
+  }
+}
+
+// 生成过程化防具
+export function generateProcShopArmor (rank = 'huang', seed = Date.now()) {
+  const r = (offset = 0) => seededRand(seed + offset)
+  const names = ['锁子甲', '皮甲', '软甲', '战袍', '护胸']
+  const prefix = pick(QUALITY_PREFIXES[rank] || QUALITY_PREFIXES.huang, seed + 100)
+  const baseName = pick(names, seed + 111)
+  const defBase = { tian: 40, di: 25, xuan: 15, huang: 8, wu: 4 }[rank] || 8
+  const attrs = { defense: Math.floor(defBase * (0.8 + r(120) * 0.4)) }
+  if (r(130) > 0.4) attrs.constitution = Math.floor(5 + r(135) * 10)
+  if (rank === 'tian' || (rank === 'di' && r(140) > 0.5)) attrs.hp = Math.floor(50 + r(145) * 100)
+  const costBase = { tian: 600, di: 300, xuan: 150, huang: 60, wu: 15 }[rank] || 60
+  const cost = Math.floor(costBase * (0.8 + r(150) * 0.4))
+  const itemId = `proc_arm_${rank}_${Math.abs(seed % 999983)}`
+  return {
+    id: itemId,
+    name: `${prefix} · ${baseName}`,
+    type: 'armor',
+    rank,
+    attrs,
+    cost,
+    desc: `铁匠精心打造，${prefix}意境护甲。`,
+    proc: true,
+  }
+}
+
+// 生成过程化饰品
+export function generateProcShopAccessory (rank = 'huang', seed = Date.now()) {
+  const r = (offset = 0) => seededRand(seed + offset)
+  const accName = pick(ACCESSORY_NAMES, seed + 200)
+  const prefix = pick(QUALITY_PREFIXES[rank] || QUALITY_PREFIXES.huang, seed + 211)
+  const attrTypes = ['luck', 'power', 'qi', 'agility', 'constitution', 'comprehension']
+  const pickAttr = () => pick(attrTypes, seed + r(220) * 1000 + 220)
+  const valBase = { tian: 20, di: 12, xuan: 7, huang: 4, wu: 2 }[rank] || 4
+  const attrs = {}
+  const attr1 = pickAttr()
+  attrs[attr1] = Math.floor(valBase * (0.6 + r(230) * 0.8))
+  if (rank !== 'wu') {
+    const attr2 = pickAttr()
+    if (attr2 !== attr1) attrs[attr2] = Math.floor(valBase * 0.5 * (0.6 + r(240) * 0.8))
+  }
+  const costBase = { tian: 500, di: 250, xuan: 120, huang: 50, wu: 15 }[rank] || 50
+  const cost = Math.floor(costBase * (0.8 + r(250) * 0.4))
+  const itemId = `proc_acc_${rank}_${Math.abs(seed % 999983)}`
+  return {
+    id: itemId,
+    name: `${prefix} · ${accName}`,
+    type: 'accessory',
+    rank,
+    attrs,
+    cost,
+    desc: `工匠巧制，${prefix}意境饰品，属性随机。`,
+    proc: true,
+  }
+}
+
+// 生成过程化消耗品（药品）
+export function generateProcShopDrug (rank = 'huang', seed = Date.now()) {
+  const r = (offset = 0) => seededRand(seed + offset)
+  const roll = r(300)
+  let effectType = 'hp'
+  if (roll < 0.3) effectType = 'qi'
+  else if (roll < 0.5) effectType = 'stamina'
+  else if (roll < 0.6) effectType = 'cure'
+  const names = DRUG_NAMES[effectType] || DRUG_NAMES.hp
+  const prefix = pick(QUALITY_PREFIXES[rank] || QUALITY_PREFIXES.huang, seed + 311)
+  const baseName = names[rank] || names.huang
+  const effectBase = { tian: { hp: 2000, qi: 500, stamina: 200 }, di: { hp: 800, qi: 200, stamina: 100 }, xuan: { hp: 300, qi: 120, stamina: 60 }, huang: { hp: 100, qi: 50, stamina: 30 }, wu: { hp: 40, qi: 20, stamina: 15 } }[rank] || { hp: 100, qi: 50, stamina: 30 }
+  const effect = {}
+  if (effectType === 'cure') {
+    effect.cure = 'poison'
+  } else {
+    effect[effectType] = Math.floor((effectBase[effectType] || 100) * (0.7 + r(320) * 0.6))
+  }
+  const costBase = DRUG_COST_BASE[rank] || 80
+  const cost = Math.floor(costBase * (0.7 + r(330) * 0.6))
+  const itemId = `proc_drg_${rank}_${Math.abs(seed % 999983)}`
+  return {
+    id: itemId,
+    name: `${prefix} · ${baseName}`,
+    type: 'consumable',
+    rank,
+    effect,
+    cost,
+    desc: `药铺精心配制，${prefix}意境${effectType === 'hp' ? '疗伤药' : effectType === 'qi' ? '回气丹' : effectType === 'stamina' ? '体力丹' : '解毒丹'}。`,
+    proc: true,
+  }
+}
+
+// 原有掉落生成（保留兼容）
 export function generateProcDrop (rank = 'huang', seed = Date.now()) {
   const r = (offset = 0) => seededRand(seed + offset)
   const roll = r(1)
@@ -793,15 +932,7 @@ export function generateProcDrop (rank = 'huang', seed = Date.now()) {
     }
   } else if (roll < 0.6) {
     // 武器
-    const weaponTypes = ['dao', 'jian', 'qiang', 'gun']
-    const wtype = pick(weaponTypes, seed + 20)
-    const powerBase = { tian: 40, di: 28, xuan: 18, huang: 10, wu: 5 }[rank] || 10
-    return {
-      type: 'weapon',
-      rank,
-      attrs: { power: Math.floor(powerBase * (0.8 + r(25) * 0.4)) },
-      weapon_type: wtype,
-    }
+    return { ...generateProcWeapon(rank, seed), type: 'weapon' }
   } else {
     // 心法残卷
     const xf = getProcXinfa(rank, seed + 30)

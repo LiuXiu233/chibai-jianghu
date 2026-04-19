@@ -16,10 +16,15 @@
 
       <!-- 购买 -->
       <div v-if="shopTab === 'buy'" class="shop-list">
-        <div v-for="item in shopItems" :key="item.id" class="shop-item">
+        <div
+          v-for="item in shopItems"
+          :key="item.id"
+          class="shop-item"
+          :class="{ 'proc-item': item.proc || item._proc }"
+        >
           <div class="si-left">
             <span :class="['rank-tag','rank-'+item.rank]">{{ rankLabel[item.rank] }}</span>
-            <span class="si-name">{{ item.name }}</span>
+            <span class="si-name">{{ (item.proc || item._proc) ? '✨ ' : '' }}{{ item.name }}</span>
           </div>
           <div class="si-attrs" v-if="item.attrs">
             <span v-for="(v, k) in item.attrs" :key="k" class="attr-chip">
@@ -107,6 +112,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGame } from '../composables/useGame'
 import { ITEMS, getItemById } from '../data/items.js'
+import { getBlacksmithShopItems } from '../data/generator.js'
 
 const router = useRouter()
 const game = useGame()
@@ -117,17 +123,11 @@ const rankLabel = { tian: '天', di: '地', xuan: '玄', huang: '黄', wu: '无'
 const attrNames = { power: '力量', qi: '气海', agility: '身法', constitution: '根骨', luck: '幸运', comprehension: '悟性', defense: '防御', dodge: '闪避', hp: '生命', hp_regen: '生命回复', qi_regen: '内力回复' }
 const slots = [{ key: 'weapon', label: '武器' }, { key: 'armor', label: '防具' }, { key: 'accessory', label: '饰品' }]
 
-// 商店出售的物品（武器/防具/饰品，按等级筛选当前区域难度）
+// 商店出售的物品（静态 + 过程化装备）
 const shopItems = computed(() => {
   const diff = game.computed.currentRegion.value?.difficulty || 1
-  const maxRank = ['wu','huang','xuan','di','tian'][Math.min(diff - 1, 4)]
-  const rankOrder = ['wu','huang','xuan','di','tian']
-  const maxIdx = rankOrder.indexOf(maxRank)
-  const allowed = rankOrder.slice(0, maxIdx + 1)
-  return ITEMS.filter(i => {
-    if (i.type !== 'weapon' && i.type !== 'armor' && i.type !== 'accessory') return false
-    return allowed.includes(i.rank)
-  }).slice(0, 12) // 最多显示12件
+  const seed = state.clock || Date.now()
+  return getBlacksmithShopItems(diff, seed)
 })
 
 const equipped = computed(() => ({
@@ -149,6 +149,13 @@ function getSellPrice (item) {
 }
 
 function doBuy (itemId) {
+  // 优先从商店列表中找到完整物品数据（含 proc 标记）
+  const shopItem = shopItems.value.find(i => i.id === itemId)
+  if (shopItem?.proc || shopItem?._proc) {
+    const ok = game.buyProcItem(shopItem)
+    if (ok && shopItem.type !== 'consumable') game.equipItem(itemId)
+    return
+  }
   const ok = game.buyItem(itemId)
   if (ok) {
     // 自动装备刚买的武器/防具/饰品
@@ -189,7 +196,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
 }
 
@@ -244,6 +251,10 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.proc-item {
+  border-color: var(--gold);
+  background: rgba(197,146,10,0.05);
 }
 .si-left { display: flex; align-items: center; gap: 6px; }
 .si-name { font-size: 14px; color: #1A1A1A; font-weight: 600; }

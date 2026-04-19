@@ -10,10 +10,15 @@
 
       <div class="section-title">在售药品</div>
       <div class="drug-list">
-        <div v-for="drug in drugs" :key="drug.id" class="drug-card">
+        <div
+          v-for="drug in drugs"
+          :key="drug.id"
+          class="drug-card"
+          :class="{ 'proc-card': drug.proc || drug._proc }"
+        >
           <div class="drug-row">
             <span :class="['rank-tag','rank-'+drug.rank]">{{ rankLabel[drug.rank] }}</span>
-            <span class="drug-name">{{ drug.name }}</span>
+            <span class="drug-name">{{ (drug.proc || drug._proc) ? '✨ ' : '' }}{{ drug.name }}</span>
             <span class="drug-cost text-gold">{{ drug.cost }}两</span>
           </div>
           <div class="drug-desc text-gray">{{ drug.desc }}</div>
@@ -35,17 +40,26 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGame } from '../composables/useGame'
-import { ITEMS } from '../data/items.js'
+import { ITEMS, getItemById } from '../data/items.js'
+import { getPharmacyShopItems } from '../data/generator.js'
 
 const router = useRouter()
 const game = useGame()
 const state = game.state
 
 const rankLabel = { tian: '天', di: '地', xuan: '玄', huang: '黄', wu: '无' }
-const drugs = computed(() => ITEMS.filter(i => i.type === 'consumable').slice(0, 6))
+const drugs = computed(() => {
+  const diff = game.computed.currentRegion.value?.difficulty || 1
+  const seed = state.clock || Date.now()
+  return getPharmacyShopItems(diff, seed)
+})
 
 function buy (drug) {
-  game.buyItem(drug.id)
+  if (drug.proc || drug._proc) {
+    game.buyProcItem(drug)
+  } else {
+    game.buyItem(drug.id)
+  }
 }
 function back () { state.phase = 'main'; router.push('/game/explore') }
 </script>
@@ -64,7 +78,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
 }
 
@@ -101,6 +115,10 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.proc-card {
+  border-color: var(--gold);
+  background: rgba(197,146,10,0.05);
 }
 
 .drug-row { display: flex; align-items: center; gap: 6px; }

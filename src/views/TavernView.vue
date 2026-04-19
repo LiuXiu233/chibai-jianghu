@@ -37,9 +37,10 @@
       <!-- 隐藏地点列表 -->
       <div class="section-title" v-if="discovered.length">—— 已发现隐秘地点 ——</div>
       <div v-if="discovered.length" class="hidden-list">
-        <div v-for="loc in discovered" :key="loc.id" class="hidden-card">
-          <div class="hc-name">{{ loc.name }}</div>
+<div v-for="loc in discovered" :key="loc.id" class="hidden-card" :class="{ 'proc-card': loc._isProc }">
+          <div class="hc-name">{{ loc._isProc ? '📍' : '' }} {{ loc.name }}</div>
           <div class="hc-region text-gray">{{ getRegionName(loc.regionId) }}</div>
+          <div v-if="loc._isProc" class="hc-proc-badge">传闻</div>
         </div>
       </div>
 
@@ -73,7 +74,9 @@ const buildingData = computed(() => state.building?.data)
 
 const discovered = computed(() => {
   const ids = state.player?.discovered_locations || []
-  return HIDDEN_LOCATIONS.filter(l => ids.includes(l.id))
+  const static_ = HIDDEN_LOCATIONS.filter(l => ids.includes(l.id))
+  const proc_ = (state.player?.procDiscoveredLocations || []).map(l => ({ ...l, _isProc: true }))
+  return [...static_, ...proc_]
 })
 
 function listenMore () {
@@ -110,7 +113,7 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
 }
 
@@ -201,4 +204,13 @@ function back () { state.phase = 'main'; router.push('/game/explore') }
 .rest-cost { font-size: 13px; color: var(--gray); }
 
 .btn-block { width: 100%; margin-top: 4px; }
+.proc-card { border-color: var(--gold); background: rgba(197,146,10,0.05); }
+.hc-proc-badge {
+  font-size: 10px;
+  background: rgba(197,146,10,0.15);
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+}
 </style>

@@ -4,9 +4,12 @@ import { MARTIAL_ARTS, XINFA } from './martialArts.js'
 import { ENEMY_TEMPLATES, spawnEnemy } from './enemies.js'
 import { generateQuest } from './questTemplates.js'
 import { discoverHiddenLocation } from './regions.js'
+import { ITEMS } from './items.js'
 import {
   generateProcMartial, generateProcXinfa,
   getProcEnemy, generateProcDrop, generateProcLocation,
+  generateProcShopWeapon, generateProcShopArmor,
+  generateProcShopAccessory, generateProcShopDrug,
 } from './procGen.js'
 
 // ---- 随机种子工具 ----
@@ -173,7 +176,7 @@ export function generateXinfaScroll (comprehension = 10, seed = Date.now()) {
 }
 
 // ---- 野外探索综合事件 ----
-// 返回: { type: 'martial_scroll'|'xinfa_scroll'|'enemy'|'item'|'nothing', data }
+// 返回: { type: 'martial_scroll'|'xinfa_scroll'|'enemy'|'item'|'location'|'nothing', data }
 export function generateExploreEvent (player, regionDiff = 1, seed = Date.now(), day = 1) {
   const roll = seededRand(seed)
   const comprehension = player?.attrs?.悟性 || 10
@@ -198,6 +201,11 @@ export function generateExploreEvent (player, regionDiff = 1, seed = Date.now(),
     // 8% 物品（过程化掉落）
     const drop = generateProcDrop(regionDiff > 2 ? 'xuan' : 'huang', seed + 5)
     return { type: 'item', data: drop }
+  } else if (roll < 0.22) {
+    // 4% 过程化地点发现（传闻）
+    const regionId = player?.regionId || 'zhongyuan'
+    const loc = generateProcLocation(regionId, seed + 99)
+    return { type: 'location', data: loc }
   }
   return { type: 'nothing', data: null }
 }
@@ -222,3 +230,55 @@ export function getMartialReq (rank) {
   const reqMap = { tian: 28, di: 22, xuan: 16, huang: 10, wu: 0 }
   return reqMap[rank] || 10
 }
+
+// ---- 铁匠铺商店物品（静态 + 过程化） ----
+// 返回: [{ ...item, proc?: true }]
+export function getBlacksmithShopItems (regionDiff = 1, seed = Date.now()) {
+  const maxRankIdx = Math.min(regionDiff - 1, 4)
+  const rankOrder = ['wu', 'huang', 'xuan', 'di', 'tian']
+  const allowedRanks = rankOrder.slice(0, maxRankIdx + 1)
+
+  // 静态物品
+  const staticItems = ITEMS.filter(i => {
+    if (i.type !== 'weapon' && i.type !== 'armor' && i.type !== 'accessory') return false
+    return allowedRanks.includes(i.rank)
+  }).slice(0, 8)
+
+  // 过程化物品（各类型 1~2 件）
+  const procItems = []
+  const PROC_COUNT = regionDiff >= 4 ? 3 : regionDiff >= 2 ? 2 : 1
+  for (let i = 0; i < PROC_COUNT; i++) {
+    const rank = allowedRanks[Math.floor(seededRand(seed + i * 7) * allowedRanks.length)]
+    const roll = seededRand(seed + i * 13 + 50)
+    if (roll < 0.35) {
+      procItems.push({ ...generateProcShopWeapon(rank, seed + i * 17 + 50), _proc: true })
+    } else if (roll < 0.65) {
+      procItems.push({ ...generateProcShopArmor(rank, seed + i * 19 + 70), _proc: true })
+    } else {
+      procItems.push({ ...generateProcShopAccessory(rank, seed + i * 23 + 90), _proc: true })
+    }
+  }
+
+  return [...staticItems, ...procItems]
+}
+
+// ---- 药铺商店物品（静态 + 过程化） ----
+export function getPharmacyShopItems (regionDiff = 1, seed = Date.now()) {
+  const maxRankIdx = Math.min(regionDiff - 1, 4)
+  const rankOrder = ['wu', 'huang', 'xuan', 'di', 'tian']
+  const allowedRanks = rankOrder.slice(0, maxRankIdx + 1)
+
+  // 静态消耗品
+  const staticDrugs = ITEMS.filter(i => i.type === 'consumable' && allowedRanks.includes(i.rank)).slice(0, 5)
+
+  // 过程化消耗品（各等阶 1 件）
+  const PROC_COUNT = Math.min(regionDiff, 3)
+  const procDrugs = []
+  for (let i = 0; i < PROC_COUNT; i++) {
+    const rank = allowedRanks[Math.floor(seededRand(seed + i * 11) * allowedRanks.length)]
+    procDrugs.push({ ...generateProcShopDrug(rank, seed + i * 31 + 200), _proc: true })
+  }
+
+  return [...staticDrugs, ...procDrugs]
+}
+

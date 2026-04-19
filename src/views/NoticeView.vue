@@ -151,7 +151,7 @@ function timerClass (q) {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #0a0a0a;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
 }
 
