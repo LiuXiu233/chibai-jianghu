@@ -24,6 +24,7 @@ const navItems = [
   { name: 'map', label: '地图', icon: '🗺', route: '/game/map' },
   { name: 'martial', label: '武功', icon: '📖', route: '/game/martial' },
   { name: 'inventory', label: '背包', icon: '🎒', route: '/game/inventory' },
+  { name: 'quests', label: '任务', icon: '📜', route: '/game/quests' },
   { name: 'character', label: '角色', icon: '👤', route: '/game/character' },
 ]
 

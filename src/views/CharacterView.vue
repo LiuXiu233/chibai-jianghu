@@ -156,13 +156,13 @@ const displayAttrs = computed(() => {
   // 加上装备加成
   const bonuses = equipBonusMap.value
   return {
-    力量: attrs.力量 + (bonuses.力量 || 0),
-    气海: attrs.气海 + (bonuses.气海 || 0),
-    身法: attrs.身法 + (bonuses.身法 || 0),
-    耐力: attrs.耐力 + (bonuses.耐力 || 0),
-    根骨: attrs.根骨 + (bonuses.根骨 || 0),
-    悟性: attrs.悟性 + (bonuses.悟性 || 0),
-    幸运: attrs.幸运 + (bonuses.幸运 || 0),
+    力量: (attrs.力量 || 0) + (bonuses.力量 || 0),
+    气海: (attrs.气海 || 0) + (bonuses.气海 || 0),
+    身法: (attrs.身法 || 0) + (bonuses.身法 || 0),
+    耐力: (attrs.耐力 || 0) + (bonuses.耐力 || 0),
+    根骨: (attrs.根骨 || 0) + (bonuses.根骨 || 0),
+    悟性: (attrs.悟性 || 0) + (bonuses.悟性 || 0),
+    幸运: (attrs.幸运 || 0) + (bonuses.幸运 || 0),
   }
 })
 
@@ -200,7 +200,7 @@ const equipBonuses = computed(() => {
   return result
 })
 
-const knownXinfas = computed(() => (state.player?.xinfas || []).map(x => XINFA.find(xf => xf.id === x.id)).filter(Boolean))
+const knownXinfas = computed(() => game.getKnownXinfas())
 
 const totalKills = computed(() => Object.values(state.player?.enemy_kills || {}).reduce((a, b) => a + b, 0))
 

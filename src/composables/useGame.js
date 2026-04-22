@@ -1172,20 +1172,14 @@ playerAction (action, martialId = null) {
           return
         }
         state.building.data = { type: 'blacksmith', level: Math.floor(Math.random() * 3) + 1 }
-        this.addLog(`铁匠铺：老板手艺${['一般', '不错', '精湛'][state.building.data.level - 1]}。（功能开发中）`, 'system')
+        this.addLog(`你走进铁匠铺，炉火正旺，铁匠正在打造兵器。`, 'event')
       } else if (type === 'pharmacy') {
         if (state.factionHostility?.pharmacy) {
           this.addLog('药铺掌柜对你不屑一顾，拒绝出售药物。', 'system')
           return
         }
-        // 随机卖药
-        const drugs = ITEMS.filter(i => i.type === 'consumable')
-        const drug = drugs[Math.floor(Math.random() * drugs.length)]
-        const regionId = state.player?.regionId || 'zhongyuan'
-        const priceMult = state.priceMultipliers?.[regionId] || 1.0
-        const price = Math.floor(drug.cost * priceMult)
-        state.building.data = { drug, price }
-        this.addLog(`药铺里有一瓶${drug.name}，售价${price}两银子。`, 'event')
+        state.building.data = { type: 'pharmacy' }
+        this.addLog(`你走进药铺，闻到一股浓郁的药香。`, 'event')
       } else if (type === 'tavern') {
         const regionId = state.player?.regionId || 'zhongyuan'
         // 30% 概率触发隐藏地点线索

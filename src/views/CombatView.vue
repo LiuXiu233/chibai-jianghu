@@ -197,7 +197,7 @@ const enemy = computed(() => state.combat?.enemy)
 const combatEnded = computed(() => !state.combat?.inCombat && enemy.value?.current_hp !== undefined)
 
 const playerMartials = computed(() => game.getKnownMartials().filter(m => {
-  if (m.data.weapon === null && state.player.equipment.weapon) return false
+  if (m.data.weapon === null && state.player?.equipment?.weapon) return false
   return true
 }))
 
@@ -450,3 +450,4 @@ watch(enemy, (newEnemy) => {
   100% { transform: scale(1.05); }
 }
 </style>
+le>
